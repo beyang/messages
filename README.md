@@ -1,1 +1,1 @@
-A TUI for handling messages
+An app for handling messages
