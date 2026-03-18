@@ -17,3 +17,8 @@ TABLE: inbox
   Columns:
     id TEXT PRIMARY KEY
     providers_json TEXT NOT NULL DEFAULT '[]'
+
+TABLE: provider_secrets
+  Columns:
+    key TEXT PRIMARY KEY
+    value TEXT NOT NULL

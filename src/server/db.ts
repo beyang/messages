@@ -78,6 +78,15 @@ const MIGRATIONS: ((db: Database.Database) => void)[] = [
       ALTER TABLE inbox ADD COLUMN providers_json TEXT NOT NULL DEFAULT '[]';
     `);
   },
+  // Migration 2: add provider_secrets table
+  (db) => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS provider_secrets (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      );
+    `);
+  },
 ];
 
 function runMigrations(db: Database.Database): void {

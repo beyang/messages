@@ -301,6 +301,7 @@ export function resetAllData(): void {
 
   database.exec(`
     DELETE FROM convo;
+    DELETE FROM provider_secrets;
     DELETE FROM inbox;
   `);
 }

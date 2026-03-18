@@ -30,8 +30,21 @@ export interface Inbox {
   providers: ProviderConfig[];
 }
 
+export type FetchConvosResult = {
+  convos: Convo[];
+  needsAuth?: { url: string };
+};
+
+export interface SecretStore {
+  get(key: string): string | null;
+  set(key: string, value: string): void;
+  delete(key: string): void;
+}
+
 export interface Provider<A extends JsonSerializable = JsonSerializable> {
   type: string;
   id: string;
-  fetchConvos(args: A): Convo[];
+  fetchConvos(args: A, secrets: SecretStore): Promise<FetchConvosResult>;
+  authInitURL?(args: A, baseURL: string): string;
+  handleAuthCallback?(secret: string, secrets: SecretStore): void;
 }
