@@ -1,6 +1,6 @@
-import Database from 'better-sqlite3';
 import fs from 'node:fs';
 import path from 'node:path';
+import Database from 'better-sqlite3';
 
 const DATA_DIR = path.resolve(process.cwd(), 'data');
 const DATABASE_PATH = path.join(DATA_DIR, 'messages.sqlite3');

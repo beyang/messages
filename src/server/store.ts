@@ -14,14 +14,19 @@ interface ConvoRow {
   messagesJSON: string;
 }
 
-function parseMessages(messagesJSON: string, convoSourceURL: string): Message[] {
+function parseMessages(
+  messagesJSON: string,
+  convoSourceURL: string,
+): Message[] {
   let parsed: unknown;
 
   try {
     parsed = JSON.parse(messagesJSON);
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
-    throw new Error(`Failed to parse messages JSON for convo ${convoSourceURL}: ${detail}`);
+    throw new Error(
+      `Failed to parse messages JSON for convo ${convoSourceURL}: ${detail}`,
+    );
   }
 
   if (!Array.isArray(parsed)) {
@@ -52,7 +57,10 @@ function convoFromRow(row: ConvoRow): Convo {
   };
 }
 
-function getConvoRowsByInbox(database: Database.Database, inboxID: string): ConvoRow[] {
+function getConvoRowsByInbox(
+  database: Database.Database,
+  inboxID: string,
+): ConvoRow[] {
   return database
     .prepare(
       `
@@ -70,7 +78,9 @@ function getConvoRowsByInbox(database: Database.Database, inboxID: string): Conv
 
 export function listInboxes(): Inbox[] {
   const database = initializeDatabase();
-  const inboxRows = database.prepare('SELECT id FROM inbox ORDER BY id').all() as InboxRow[];
+  const inboxRows = database
+    .prepare('SELECT id FROM inbox ORDER BY id')
+    .all() as InboxRow[];
 
   return inboxRows.map((inboxRow) => ({
     id: inboxRow.id,
@@ -80,7 +90,9 @@ export function listInboxes(): Inbox[] {
 
 export function getInbox(id: string): Inbox | null {
   const database = initializeDatabase();
-  const inboxRow = database.prepare('SELECT id FROM inbox WHERE id = ?').get(id) as InboxRow | undefined;
+  const inboxRow = database
+    .prepare('SELECT id FROM inbox WHERE id = ?')
+    .get(id) as InboxRow | undefined;
 
   if (!inboxRow) {
     return null;

@@ -16,7 +16,8 @@
     "db:seed": "tsx src/scripts/db.ts seed",
     "db:reset": "tsx src/scripts/db.ts reset",
     "test": "vitest run",
-    "fix": "UPDATE_SCHEMA=true vitest run src/server/schema.test.ts"
+    "lint": "biome check src",
+    "fix": "biome check --fix src && UPDATE_SCHEMA=true vitest run src/server/schema.test.ts"
   },
   "dependencies": {
     "better-sqlite3": "^11.9.1",
@@ -24,6 +25,7 @@
     "svelte": "^5.53.13"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.4.8",
     "@sveltejs/adapter-node": "^5.5.4",
     "@sveltejs/kit": "^2.55.0",
     "@sveltejs/vite-plugin-svelte": "^6.2.1",

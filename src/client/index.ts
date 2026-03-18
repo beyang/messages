@@ -1,7 +1,6 @@
 import blessed from 'blessed';
-
-import { MessagesApi } from './api';
 import type { Convo, Inbox } from '../shared/types';
+import { MessagesApi } from './api';
 
 type FocusPane = 'inboxes' | 'threads';
 
@@ -143,8 +142,12 @@ function setStatus(message: string): void {
 }
 
 function renderInboxes(): void {
-  const items = state.inboxes.map((inbox) => `${escapeTags(inbox.id)} (${inbox.threads.length})`);
-  inboxList.setItems(items.length > 0 ? items : ['{gray-fg}(no inboxes){/gray-fg}']);
+  const items = state.inboxes.map(
+    (inbox) => `${escapeTags(inbox.id)} (${inbox.threads.length})`,
+  );
+  inboxList.setItems(
+    items.length > 0 ? items : ['{gray-fg}(no inboxes){/gray-fg}'],
+  );
 
   if (items.length > 0) {
     inboxList.select(state.selectedInboxIndex);
@@ -155,8 +158,12 @@ function renderInboxes(): void {
 
 function renderThreads(): void {
   const threads = currentThreads();
-  const items = threads.map((thread) => `${escapeTags(thread.sourceURL)} (${thread.messages.length})`);
-  threadList.setItems(items.length > 0 ? items : ['{gray-fg}(no threads){/gray-fg}']);
+  const items = threads.map(
+    (thread) => `${escapeTags(thread.sourceURL)} (${thread.messages.length})`,
+  );
+  threadList.setItems(
+    items.length > 0 ? items : ['{gray-fg}(no threads){/gray-fg}'],
+  );
 
   if (items.length > 0) {
     threadList.select(state.selectedThreadIndex);
@@ -168,7 +175,9 @@ function renderThreads(): void {
 function renderMessages(): void {
   const thread = currentThread();
   if (!thread) {
-    messagesBox.setContent('{gray-fg}Select a thread to read messages.{/gray-fg}');
+    messagesBox.setContent(
+      '{gray-fg}Select a thread to read messages.{/gray-fg}',
+    );
     return;
   }
 
@@ -218,7 +227,10 @@ function renderAll(): void {
 }
 
 function syncThreadSelection(): void {
-  state.selectedThreadIndex = clampIndex(state.selectedThreadIndex, currentThreads().length);
+  state.selectedThreadIndex = clampIndex(
+    state.selectedThreadIndex,
+    currentThreads().length,
+  );
 }
 
 function moveSelection(step: number): void {
@@ -227,7 +239,10 @@ function moveSelection(step: number): void {
       return;
     }
 
-    state.selectedInboxIndex = clampIndex(state.selectedInboxIndex + step, state.inboxes.length);
+    state.selectedInboxIndex = clampIndex(
+      state.selectedInboxIndex + step,
+      state.inboxes.length,
+    );
     state.selectedThreadIndex = 0;
     renderAll();
     return;
@@ -238,7 +253,10 @@ function moveSelection(step: number): void {
     return;
   }
 
-  state.selectedThreadIndex = clampIndex(state.selectedThreadIndex + step, threads.length);
+  state.selectedThreadIndex = clampIndex(
+    state.selectedThreadIndex + step,
+    threads.length,
+  );
   renderAll();
 }
 
@@ -252,12 +270,17 @@ async function refreshData(statusMessage: string): Promise<void> {
 
   try {
     state.inboxes = await api.listInboxes();
-    state.selectedInboxIndex = clampIndex(state.selectedInboxIndex, state.inboxes.length);
+    state.selectedInboxIndex = clampIndex(
+      state.selectedInboxIndex,
+      state.inboxes.length,
+    );
 
     if (previousThread) {
       const inbox = currentInbox();
       if (inbox) {
-        const nextThreadIndex = inbox.threads.findIndex((thread) => thread.sourceURL === previousThread);
+        const nextThreadIndex = inbox.threads.findIndex(
+          (thread) => thread.sourceURL === previousThread,
+        );
         if (nextThreadIndex >= 0) {
           state.selectedThreadIndex = nextThreadIndex;
         }

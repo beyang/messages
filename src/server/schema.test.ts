@@ -1,7 +1,7 @@
-import Database from 'better-sqlite3';
 import fs from 'node:fs';
 import path from 'node:path';
-import { describe, it, expect } from 'vitest';
+import Database from 'better-sqlite3';
+import { describe, expect, it } from 'vitest';
 
 import { SCHEMA_SQL } from './db';
 
@@ -45,7 +45,9 @@ function generateSchema(): string {
   db.exec(SCHEMA_SQL);
 
   const tables = db
-    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")
+    .prepare(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
+    )
     .all() as { name: string }[];
 
   const sections: string[] = [];
@@ -54,7 +56,9 @@ function generateSchema(): string {
     const lines: string[] = [];
     lines.push(`TABLE: ${table}`);
 
-    const columns = db.prepare(`PRAGMA table_info('${table}')`).all() as TableInfo[];
+    const columns = db
+      .prepare(`PRAGMA table_info('${table}')`)
+      .all() as TableInfo[];
     lines.push('  Columns:');
     for (const col of columns) {
       const parts = [`    ${col.name} ${col.type}`];
@@ -64,20 +68,28 @@ function generateSchema(): string {
       lines.push(parts.join(' '));
     }
 
-    const fks = db.prepare(`PRAGMA foreign_key_list('${table}')`).all() as ForeignKeyEntry[];
+    const fks = db
+      .prepare(`PRAGMA foreign_key_list('${table}')`)
+      .all() as ForeignKeyEntry[];
     if (fks.length > 0) {
       lines.push('  Foreign keys:');
       for (const fk of fks) {
-        lines.push(`    ${fk.from} -> ${fk.table}(${fk.to}) ON DELETE ${fk.on_delete} ON UPDATE ${fk.on_update}`);
+        lines.push(
+          `    ${fk.from} -> ${fk.table}(${fk.to}) ON DELETE ${fk.on_delete} ON UPDATE ${fk.on_update}`,
+        );
       }
     }
 
-    const indexes = db.prepare(`PRAGMA index_list('${table}')`).all() as IndexListEntry[];
+    const indexes = db
+      .prepare(`PRAGMA index_list('${table}')`)
+      .all() as IndexListEntry[];
     const nonAutoIndexes = indexes.filter((idx) => idx.origin !== 'pk');
     if (nonAutoIndexes.length > 0) {
       lines.push('  Indexes:');
       for (const idx of nonAutoIndexes) {
-        const idxCols = db.prepare(`PRAGMA index_info('${idx.name}')`).all() as IndexInfo[];
+        const idxCols = db
+          .prepare(`PRAGMA index_info('${idx.name}')`)
+          .all() as IndexInfo[];
         const colNames = idxCols.map((c) => c.name).join(', ');
         const unique = idx.unique ? ' UNIQUE' : '';
         lines.push(`    ${idx.name}${unique} (${colNames})`);
@@ -88,7 +100,7 @@ function generateSchema(): string {
   }
 
   db.close();
-  return HEADER + '\n' + sections.join('\n\n') + '\n';
+  return `${HEADER}\n${sections.join('\n\n')}\n`;
 }
 
 describe('SCHEMA.txt', () => {
@@ -100,7 +112,9 @@ describe('SCHEMA.txt', () => {
       return;
     }
 
-    const existing = fs.existsSync(SCHEMA_PATH) ? fs.readFileSync(SCHEMA_PATH, 'utf-8') : '';
+    const existing = fs.existsSync(SCHEMA_PATH)
+      ? fs.readFileSync(SCHEMA_PATH, 'utf-8')
+      : '';
     expect(generated).toBe(existing);
   });
 });
