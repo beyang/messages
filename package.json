@@ -14,7 +14,9 @@
     "tui": "tsx src/client/index.ts",
     "client": "tsx src/client/index.ts",
     "db:seed": "tsx src/scripts/db.ts seed",
-    "db:reset": "tsx src/scripts/db.ts reset"
+    "db:reset": "tsx src/scripts/db.ts reset",
+    "test": "vitest run",
+    "fix": "UPDATE_SCHEMA=true vitest run src/server/schema.test.ts"
   },
   "dependencies": {
     "better-sqlite3": "^11.9.1",
@@ -31,6 +33,7 @@
     "svelte-check": "^4.3.1",
     "tsx": "^4.19.3",
     "typescript": "^5.8.2",
-    "vite": "^7.1.12"
+    "vite": "^7.1.12",
+    "vitest": "^4.1.0"
   }
 }
