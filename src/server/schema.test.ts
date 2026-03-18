@@ -3,7 +3,7 @@ import path from 'node:path';
 import Database from 'better-sqlite3';
 import { describe, expect, it } from 'vitest';
 
-import { SCHEMA_SQL } from './db';
+import { applySchema } from './db';
 
 const SCHEMA_PATH = path.resolve(__dirname, '../../SCHEMA.txt');
 
@@ -42,7 +42,7 @@ interface ForeignKeyEntry {
 function generateSchema(): string {
   const db = new Database(':memory:');
   db.pragma('foreign_keys = ON');
-  db.exec(SCHEMA_SQL);
+  applySchema(db);
 
   const tables = db
     .prepare(

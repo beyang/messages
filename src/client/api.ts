@@ -1,10 +1,53 @@
-import type { Inbox } from '../shared/types';
+import type {
+  Convo,
+  Inbox,
+  JsonSerializable,
+  ProviderConfig,
+} from '../shared/types';
 
 export class MessagesApi {
   constructor(private readonly baseURL: string) {}
 
   async listInboxes(): Promise<Inbox[]> {
     return this.request<Inbox[]>('/api/inboxes');
+  }
+
+  async createProvider(
+    inboxID: string,
+    id: string,
+    type: string,
+    args: JsonSerializable = null,
+  ): Promise<ProviderConfig> {
+    return this.request<ProviderConfig>(
+      `/api/inboxes/${encodeURIComponent(inboxID)}/providers`,
+      { method: 'POST', body: JSON.stringify({ id, type, args }) },
+    );
+  }
+
+  async updateProvider(
+    inboxID: string,
+    id: string,
+    updates: { type?: string; args?: JsonSerializable },
+  ): Promise<ProviderConfig> {
+    return this.request<ProviderConfig>(
+      `/api/inboxes/${encodeURIComponent(inboxID)}/providers`,
+      { method: 'PUT', body: JSON.stringify({ id, ...updates }) },
+    );
+  }
+
+  async fetchProviders(
+    inboxID: string,
+  ): Promise<{ fetched: number; convos: Convo[] }> {
+    return this.request(`/api/inboxes/${encodeURIComponent(inboxID)}/fetch`, {
+      method: 'POST',
+    });
+  }
+
+  async deleteProvider(inboxID: string, id: string): Promise<void> {
+    await this.request(
+      `/api/inboxes/${encodeURIComponent(inboxID)}/providers`,
+      { method: 'DELETE', body: JSON.stringify({ id }) },
+    );
   }
 
   private async request<T>(path: string, init?: RequestInit): Promise<T> {

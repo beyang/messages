@@ -4,7 +4,8 @@
 
 TABLE: convo
   Columns:
-    source_url TEXT PRIMARY KEY
+    id TEXT PRIMARY KEY
+    source_url TEXT NOT NULL
     inbox_id TEXT NOT NULL
     messages_json TEXT NOT NULL
   Foreign keys:
@@ -15,3 +16,4 @@ TABLE: convo
 TABLE: inbox
   Columns:
     id TEXT PRIMARY KEY
+    providers_json TEXT NOT NULL DEFAULT '[]'

@@ -203,11 +203,17 @@ function renderFooter(): void {
     ? `Selected thread: ${selectedThread.sourceURL}`
     : 'Selected thread: (none)';
 
+  const inbox = currentInbox();
+  const providerLabel = inbox
+    ? `Providers: ${inbox.providers.length > 0 ? inbox.providers.map((p) => `${p.id}(${p.type})`).join(', ') : '(none)'}`
+    : '';
+
   footerBox.setContent(
     [
       escapeTags(state.status),
-      '{bold}Keys{/bold}: ↑/↓ move · tab switch pane · R refresh · q quit',
+      '{bold}Keys{/bold}: ↑/↓ move · tab switch pane · R refresh · f fetch providers · p add provider · q quit',
       escapeTags(selectedThreadLabel),
+      escapeTags(providerLabel),
     ].join('\n'),
   );
 }
@@ -330,6 +336,104 @@ screen.key(['down', 'j'], () => {
 
 screen.key(['R'], () => {
   void refreshData('Inboxes refreshed from server.');
+});
+
+screen.key(['f'], () => {
+  const inbox = currentInbox();
+  if (!inbox) {
+    setStatus('No inbox selected.');
+    renderAll();
+    return;
+  }
+
+  if (inbox.providers.length === 0) {
+    setStatus('No providers configured for this inbox. Press "p" to add one.');
+    renderAll();
+    return;
+  }
+
+  void (async () => {
+    try {
+      setStatus(`Fetching from ${inbox.providers.length} provider(s)...`);
+      renderAll();
+      const result = await api.fetchProviders(inbox.id);
+      await refreshData(
+        `Fetched ${result.fetched} conversation(s) from providers.`,
+      );
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      setStatus(`Fetch failed: ${detail}`);
+      renderAll();
+    }
+  })();
+});
+
+screen.key(['p'], () => {
+  const inbox = currentInbox();
+  if (!inbox) {
+    setStatus('No inbox selected.');
+    renderAll();
+    return;
+  }
+
+  const prompt = blessed.prompt({
+    parent: screen,
+    top: 'center',
+    left: 'center',
+    width: '50%',
+    height: 'shrink',
+    border: 'line',
+    label: ' Add Provider ',
+    style: { border: { fg: 'cyan' } },
+  });
+
+  prompt.input('Provider ID:', '', (_err, providerId) => {
+    if (!providerId || providerId.trim() === '') {
+      prompt.destroy();
+      renderAll();
+      return;
+    }
+
+    const typePrompt = blessed.prompt({
+      parent: screen,
+      top: 'center',
+      left: 'center',
+      width: '50%',
+      height: 'shrink',
+      border: 'line',
+      label: ' Provider Type ',
+      style: { border: { fg: 'cyan' } },
+    });
+
+    typePrompt.input(
+      'Provider type (e.g. dummy):',
+      'dummy',
+      (_err2, providerType) => {
+        typePrompt.destroy();
+        if (!providerType || providerType.trim() === '') {
+          renderAll();
+          return;
+        }
+
+        void (async () => {
+          try {
+            await api.createProvider(
+              inbox.id,
+              providerId.trim(),
+              providerType.trim(),
+            );
+            setStatus(`Provider "${providerId.trim()}" added.`);
+            await refreshData(`Provider "${providerId.trim()}" added.`);
+          } catch (error) {
+            const detail =
+              error instanceof Error ? error.message : String(error);
+            setStatus(`Failed to add provider: ${detail}`);
+            renderAll();
+          }
+        })();
+      },
+    );
+  });
 });
 
 inboxList.on('select', (_item, index) => {
