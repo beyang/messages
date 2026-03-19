@@ -4,6 +4,9 @@ import { MessagesApi } from './api';
 
 type FocusPane = 'inboxes' | 'threads';
 
+const FOOTER_HEIGHT = 6;
+const MAIN_PANE_HEIGHT = `100%-${FOOTER_HEIGHT}`;
+
 interface AppState {
   inboxes: Inbox[];
   selectedInboxIndex: number;
@@ -34,7 +37,7 @@ const inboxList = blessed.list({
   top: 0,
   left: 0,
   width: '25%',
-  height: '85%',
+  height: MAIN_PANE_HEIGHT,
   border: 'line',
   label: ' Inboxes ',
   mouse: true,
@@ -53,7 +56,7 @@ const threadList = blessed.list({
   top: 0,
   left: '25%',
   width: '30%',
-  height: '85%',
+  height: MAIN_PANE_HEIGHT,
   border: 'line',
   label: ' Threads ',
   mouse: true,
@@ -72,7 +75,7 @@ const messagesBox = blessed.box({
   top: 0,
   left: '55%',
   width: '45%',
-  height: '85%',
+  height: MAIN_PANE_HEIGHT,
   border: 'line',
   label: ' Messages ',
   tags: true,
@@ -97,10 +100,11 @@ const footerBox = blessed.box({
   bottom: 0,
   left: 0,
   width: '100%',
-  height: '15%',
+  height: FOOTER_HEIGHT,
   border: 'line',
   label: ' Status ',
   tags: true,
+  wrap: true,
   content: state.status,
   style: {
     border: { fg: 'white' },
@@ -206,14 +210,13 @@ function renderFooter(): void {
   const inbox = currentInbox();
   const providerLabel = inbox
     ? `Providers: ${inbox.providers.length > 0 ? inbox.providers.map((p) => `${p.id}(${p.type})`).join(', ') : '(none)'}`
-    : '';
+    : 'Providers: (no inbox selected)';
 
   footerBox.setContent(
     [
       escapeTags(state.status),
       '{bold}Keys{/bold}: ↑/↓ move · tab switch pane · R refresh · f fetch providers · p add provider · q quit',
-      escapeTags(selectedThreadLabel),
-      escapeTags(providerLabel),
+      escapeTags(`${providerLabel} · ${selectedThreadLabel}`),
     ].join('\n'),
   );
 }
