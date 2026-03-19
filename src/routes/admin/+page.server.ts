@@ -1,6 +1,10 @@
 import { fail } from '@sveltejs/kit';
 import { initializeDatabase } from '../../server/db';
-import { createProviderConfig } from '../../server/store';
+import {
+  createInbox,
+  createProviderConfig,
+  deleteInbox,
+} from '../../server/store';
 import type { ProviderConfig } from '../../shared/types';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -10,6 +14,18 @@ interface TablePage {
   total: number;
   page: number;
   pageSize: number;
+}
+
+function isInboxAlreadyExistsError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  const code = (error as { code?: unknown }).code;
+  return (
+    code === 'SQLITE_CONSTRAINT_PRIMARYKEY' ||
+    error.message.includes('UNIQUE constraint failed: inbox.id')
+  );
 }
 
 function queryTable(
@@ -88,6 +104,35 @@ export const actions: Actions = {
       args,
     });
 
-    return { success: true };
+    return { success: 'Provider added.' };
+  },
+  addInbox: async ({ request }) => {
+    const form = await request.formData();
+    const id = form.get('inboxId') as string | null;
+
+    if (!id?.trim()) return fail(400, { error: 'Inbox ID is required.' });
+
+    try {
+      createInbox(id.trim());
+    } catch (error) {
+      if (isInboxAlreadyExistsError(error)) {
+        return fail(400, { error: 'Inbox already exists.' });
+      }
+
+      return fail(500, { error: 'Failed to create inbox.' });
+    }
+
+    return { success: 'Inbox added.' };
+  },
+  deleteInbox: async ({ request }) => {
+    const form = await request.formData();
+    const id = form.get('inboxId') as string | null;
+
+    if (!id?.trim()) return fail(400, { error: 'Inbox ID is required.' });
+
+    const deleted = deleteInbox(id.trim());
+    if (!deleted) return fail(404, { error: 'Inbox not found.' });
+
+    return { success: 'Inbox deleted.' };
   },
 };

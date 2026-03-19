@@ -1,9 +1,13 @@
 <script lang="ts">
+import { tick } from 'svelte';
 import type { ActionData, PageData } from './$types';
 
 let { data, form }: { data: PageData; form: ActionData } = $props();
 let showModal = $state(false);
+let showInboxModal = $state(false);
 let selectedType = $state('dummy');
+let providerIdInput: HTMLInputElement | undefined;
+let inboxIdInput: HTMLInputElement | undefined;
 
 let gmailSearchQuery = $state('');
 let gmailClientId = $state('');
@@ -28,6 +32,27 @@ function resetModal() {
   gmailClientId = '';
   gmailClientSecret = '';
 }
+
+async function openProviderModal() {
+  showModal = true;
+  await tick();
+  providerIdInput?.focus();
+}
+
+function closeProviderModal() {
+  showModal = false;
+  resetModal();
+}
+
+async function openInboxModal() {
+  showInboxModal = true;
+  await tick();
+  inboxIdInput?.focus();
+}
+
+function closeInboxModal() {
+  showInboxModal = false;
+}
 </script>
 
 <svelte:head>
@@ -35,13 +60,19 @@ function resetModal() {
 </svelte:head>
 
 <div class="admin">
-  <h1>Admin <button type="button" class="add-btn" onclick={() => (showModal = true)}>Add Provider</button></h1>
+  <h1>
+    Admin
+    <span class="header-actions">
+      <button type="button" class="add-btn" onclick={openInboxModal}>Add Inbox</button>
+      <button type="button" class="add-btn" onclick={openProviderModal}>Add Provider</button>
+    </span>
+  </h1>
 
   {#if form?.error}
     <div class="flash error">{form.error}</div>
   {/if}
   {#if form?.success}
-    <div class="flash success">Provider added.</div>
+    <div class="flash success">{form.success}</div>
   {/if}
 
   {#each Object.entries(data.tables) as [name, table]}
@@ -58,6 +89,9 @@ function resetModal() {
                 {#each table.columns as col}
                   <th>{col}</th>
                 {/each}
+                {#if name === 'inbox'}
+                  <th></th>
+                {/if}
               </tr>
             </thead>
             <tbody>
@@ -66,6 +100,14 @@ function resetModal() {
                   {#each table.columns as col}
                     <td><pre>{typeof row[col] === 'string' && row[col].length > 120 ? row[col].slice(0, 120) + '…' : String(row[col] ?? '')}</pre></td>
                   {/each}
+                  {#if name === 'inbox'}
+                    <td>
+                      <form method="POST" action="?/deleteInbox" class="inline-form">
+                        <input type="hidden" name="inboxId" value={String(row.id ?? '')} />
+                        <button type="submit" class="delete-btn">Delete</button>
+                      </form>
+                    </td>
+                  {/if}
                 </tr>
               {/each}
             </tbody>
@@ -90,11 +132,11 @@ function resetModal() {
 </div>
 
 {#if showModal}
-  <div class="overlay" onclick={() => { showModal = false; resetModal(); }} role="presentation">
+  <div class="overlay" onclick={closeProviderModal} role="presentation">
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <div class="modal" onclick={(e) => e.stopPropagation()} role="dialog" tabindex="-1">
       <h2>Add Provider</h2>
-      <form method="POST" action="?/addProvider" onsubmit={() => { showModal = false; resetModal(); }}>
+      <form method="POST" action="?/addProvider">
         <label>
           Inbox ID
           <select name="inboxId" required>
@@ -105,7 +147,7 @@ function resetModal() {
         </label>
         <label>
           Provider ID
-          <input name="providerId" required placeholder="my-gmail" />
+          <input bind:this={providerIdInput} name="providerId" required placeholder="my-gmail" />
         </label>
         <label>
           Type
@@ -133,7 +175,26 @@ function resetModal() {
         <input type="hidden" name="args" value={argsJson} />
 
         <div class="modal-actions">
-          <button type="button" onclick={() => { showModal = false; resetModal(); }}>Cancel</button>
+          <button type="button" onclick={closeProviderModal}>Cancel</button>
+          <button type="submit">Add</button>
+        </div>
+      </form>
+    </div>
+  </div>
+{/if}
+
+{#if showInboxModal}
+  <div class="overlay" onclick={closeInboxModal} role="presentation">
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <div class="modal" onclick={(e) => e.stopPropagation()} role="dialog" tabindex="-1">
+      <h2>Add Inbox</h2>
+      <form method="POST" action="?/addInbox">
+        <label>
+          Inbox ID
+          <input bind:this={inboxIdInput} name="inboxId" required placeholder="my-inbox" />
+        </label>
+        <div class="modal-actions">
+          <button type="button" onclick={closeInboxModal}>Cancel</button>
           <button type="submit">Add</button>
         </div>
       </form>
@@ -169,6 +230,11 @@ function resetModal() {
     display: flex;
     align-items: center;
     justify-content: space-between;
+  }
+
+  .header-actions {
+    display: flex;
+    gap: 0.5rem;
   }
 
   .add-btn {
@@ -261,6 +327,23 @@ function resetModal() {
   }
   tr:nth-child(odd) td {
     background: #1e293b;
+  }
+
+  .inline-form {
+    margin: 0;
+  }
+
+  .delete-btn {
+    padding: 0.25rem 0.6rem;
+    background: #7f1d1d;
+    color: #fca5a5;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.78rem;
+  }
+  .delete-btn:hover {
+    background: #991b1b;
   }
 
   .pagination {

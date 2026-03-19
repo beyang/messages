@@ -127,6 +127,20 @@ export function listInboxes(): Inbox[] {
   return inboxRows.map((row) => inboxFromRow(database, row));
 }
 
+export function createInbox(id: string): Inbox {
+  const database = initializeDatabase();
+  database
+    .prepare('INSERT INTO inbox (id, providers_json) VALUES (?, ?)')
+    .run(id, '[]');
+  return { id, threads: [], providers: [] };
+}
+
+export function deleteInbox(id: string): boolean {
+  const database = initializeDatabase();
+  const result = database.prepare('DELETE FROM inbox WHERE id = ?').run(id);
+  return result.changes > 0;
+}
+
 export function getInbox(id: string): Inbox | null {
   const database = initializeDatabase();
   const inboxRow = database
