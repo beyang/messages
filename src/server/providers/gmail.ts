@@ -70,7 +70,7 @@ export class GmailProvider implements Provider<GmailProviderArgs> {
     this.id = config.id;
   }
 
-  authInitURL(_args: GmailProviderArgs, baseURL: string): string {
+  authInitURL(args: GmailProviderArgs, baseURL: string): string {
     const creds = getGmailConfig();
     const params = new URLSearchParams({
       client_id: creds.clientId,
@@ -80,8 +80,10 @@ export class GmailProvider implements Provider<GmailProviderArgs> {
       access_type: 'offline',
       prompt: 'consent',
       state: this.id,
-      login_hint: creds.email,
     });
+    if (args.email) {
+      params.set('login_hint', args.email);
+    }
     return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
   }
 

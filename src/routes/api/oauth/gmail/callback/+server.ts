@@ -1,6 +1,5 @@
 import type { RequestHandler } from '@sveltejs/kit';
-import { json } from '@sveltejs/kit';
-import { getGmailConfig } from '../../../../../server/gmail-config';
+import { redirect } from '@sveltejs/kit';
 import { instantiateProvider } from '../../../../../server/providers';
 import {
   exchangeGmailCode,
@@ -8,18 +7,22 @@ import {
 } from '../../../../../server/providers/gmail';
 import { SqliteSecretStore } from '../../../../../server/secret-store';
 import { getInboxProviders, listInboxes } from '../../../../../server/store';
+import type { GmailProviderArgs } from '../../../../../shared/gmail-types';
 export const GET: RequestHandler = async ({ url }) => {
   const code = url.searchParams.get('code');
   const providerId = url.searchParams.get('state');
   const error = url.searchParams.get('error');
 
   if (error) {
-    return json({ error: `OAuth error: ${error}` }, { status: 400 });
+    redirect(
+      303,
+      `/admin?auth_error=${encodeURIComponent(`OAuth error: ${error}`)}`,
+    );
   }
   if (!code || !providerId) {
-    return json(
-      { error: 'Missing "code" or "state" query param.' },
-      { status: 400 },
+    redirect(
+      303,
+      `/admin?auth_error=${encodeURIComponent('Missing "code" or "state" query param.')}`,
     );
   }
 
@@ -32,7 +35,10 @@ export const GET: RequestHandler = async ({ url }) => {
   }
 
   if (!providerConfig) {
-    return json({ error: 'Provider not found.' }, { status: 404 });
+    redirect(
+      303,
+      `/admin?auth_error=${encodeURIComponent('Provider not found.')}`,
+    );
   }
 
   const redirectUri = `${url.origin}/api/oauth/gmail/callback`;
@@ -42,14 +48,12 @@ export const GET: RequestHandler = async ({ url }) => {
     redirectUri,
   );
 
+  const args = providerConfig.args as GmailProviderArgs;
   const profileEmail = await getGmailProfileEmail(accessToken);
-  const config = getGmailConfig();
-  if (profileEmail.toLowerCase() !== config.email.toLowerCase()) {
-    return json(
-      {
-        error: `Authorized account (${profileEmail}) does not match configured email (${config.email}).`,
-      },
-      { status: 403 },
+  if (args.email && profileEmail.toLowerCase() !== args.email.toLowerCase()) {
+    redirect(
+      303,
+      `/admin?auth_error=${encodeURIComponent(`Authorized account (${profileEmail}) does not match configured email (${args.email}).`)}`,
     );
   }
 
@@ -59,5 +63,5 @@ export const GET: RequestHandler = async ({ url }) => {
     provider.handleAuthCallback(refreshToken, secrets);
   }
 
-  return json({ ok: true, message: 'Gmail OAuth completed successfully.' });
+  redirect(303, '/admin?auth_success=Gmail+OAuth+completed+successfully.');
 };

@@ -4,6 +4,7 @@ import {
   createInbox,
   createProviderConfig,
   deleteInbox,
+  listInboxes,
 } from '../../server/store';
 import type { ProviderConfig } from '../../shared/types';
 import type { Actions, PageServerLoad } from './$types';
@@ -73,7 +74,21 @@ export const load: PageServerLoad = ({ url }) => {
     db.prepare('SELECT id FROM inbox ORDER BY id').all() as { id: string }[]
   ).map((r) => r.id);
 
-  return { tables: data, inboxIds: inboxes };
+  const inboxProviders = listInboxes().map((inbox) => ({
+    inboxId: inbox.id,
+    providers: inbox.providers.map((p) => ({ id: p.id, type: p.type })),
+  }));
+
+  const authError = url.searchParams.get('auth_error') ?? null;
+  const authSuccess = url.searchParams.get('auth_success') ?? null;
+
+  return {
+    tables: data,
+    inboxIds: inboxes,
+    inboxProviders,
+    authError,
+    authSuccess,
+  };
 };
 
 export const actions: Actions = {

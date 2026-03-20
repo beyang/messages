@@ -9,11 +9,13 @@ let selectedType = $state('dummy');
 let providerIdInput = $state<HTMLInputElement | undefined>();
 let inboxIdInput = $state<HTMLInputElement | undefined>();
 
+let gmailEmail = $state('');
 let gmailSearchQuery = $state('');
 
 let argsJson = $derived.by(() => {
   if (selectedType === 'gmail') {
     return JSON.stringify({
+      email: gmailEmail,
       searchQuery: gmailSearchQuery,
     });
   }
@@ -22,6 +24,7 @@ let argsJson = $derived.by(() => {
 
 function resetModal() {
   selectedType = 'dummy';
+  gmailEmail = '';
   gmailSearchQuery = '';
 }
 
@@ -45,6 +48,38 @@ async function openInboxModal() {
 function closeInboxModal() {
   showInboxModal = false;
 }
+
+let showAuthModal = $state(false);
+let authProviderId = $state('');
+let authError = $state('');
+
+let allProviders = $derived(
+  data.inboxProviders.flatMap((inbox) =>
+    inbox.providers.map((p) => ({ ...p, inboxId: inbox.inboxId })),
+  ),
+);
+
+function openAuthModal() {
+  authError = '';
+  authProviderId = allProviders[0]?.id ?? '';
+  showAuthModal = true;
+}
+
+function closeAuthModal() {
+  showAuthModal = false;
+}
+
+async function startAuth() {
+  if (!authProviderId) return;
+  authError = '';
+  const res = await fetch(`/api/oauth/gmail?provider_id=${encodeURIComponent(authProviderId)}`);
+  const body = await res.json();
+  if (!res.ok) {
+    authError = body.error ?? 'Failed to start auth.';
+    return;
+  }
+  window.location.href = body.url;
+}
 </script>
 
 <svelte:head>
@@ -57,14 +92,15 @@ function closeInboxModal() {
     <span class="header-actions">
       <button type="button" class="add-btn" onclick={openInboxModal}>Add Inbox</button>
       <button type="button" class="add-btn" onclick={openProviderModal}>Add Provider</button>
+      <button type="button" class="add-btn" onclick={openAuthModal}>Authorize</button>
     </span>
   </h1>
 
-  {#if form?.error}
-    <div class="flash error">{form.error}</div>
+  {#if form?.error || data.authError}
+    <div class="flash error">{form?.error ?? data.authError}</div>
   {/if}
-  {#if form?.success}
-    <div class="flash success">{form.success}</div>
+  {#if form?.success || data.authSuccess}
+    <div class="flash success">{form?.success ?? data.authSuccess}</div>
   {/if}
 
   {#each Object.entries(data.tables) as [name, table]}
@@ -90,7 +126,7 @@ function closeInboxModal() {
               {#each table.rows as row}
                 <tr>
                   {#each table.columns as col}
-                    <td><pre>{typeof row[col] === 'string' && row[col].length > 120 ? row[col].slice(0, 120) + '…' : String(row[col] ?? '')}</pre></td>
+                    <td><pre>{String(row[col] ?? '')}</pre></td>
                   {/each}
                   {#if name === 'inbox'}
                     <td>
@@ -151,6 +187,10 @@ function closeInboxModal() {
 
         {#if selectedType === 'gmail'}
           <label>
+            Email
+            <input bind:value={gmailEmail} required placeholder="you@gmail.com" type="email" />
+          </label>
+          <label>
             Search Query
             <input bind:value={gmailSearchQuery} required placeholder="label:inbox" />
           </label>
@@ -182,6 +222,37 @@ function closeInboxModal() {
           <button type="submit">Add</button>
         </div>
       </form>
+    </div>
+  </div>
+{/if}
+
+{#if showAuthModal}
+  <div class="overlay" onclick={closeAuthModal} role="presentation">
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <div class="modal" onclick={(e) => e.stopPropagation()} role="dialog" tabindex="-1">
+      <h2>Authorize Provider</h2>
+      {#if authError}
+        <div class="flash error">{authError}</div>
+      {/if}
+      {#if allProviders.length === 0}
+        <p class="empty">No providers configured. Add a provider first.</p>
+        <div class="modal-actions">
+          <button type="button" onclick={closeAuthModal}>Close</button>
+        </div>
+      {:else}
+        <label>
+          Provider
+          <select bind:value={authProviderId}>
+            {#each allProviders as p}
+              <option value={p.id}>{p.id} ({p.type}) — {p.inboxId}</option>
+            {/each}
+          </select>
+        </label>
+        <div class="modal-actions">
+          <button type="button" onclick={closeAuthModal}>Cancel</button>
+          <button type="button" class="auth-submit" onclick={startAuth}>Authorize</button>
+        </div>
+      {/if}
     </div>
   </div>
 {/if}
@@ -427,5 +498,12 @@ function closeInboxModal() {
   }
   .modal-actions button[type='button']:hover {
     background: #475569;
+  }
+  .modal-actions button.auth-submit {
+    background: #3b82f6;
+    color: #fff;
+  }
+  .modal-actions button.auth-submit:hover {
+    background: #2563eb;
   }
 </style>
