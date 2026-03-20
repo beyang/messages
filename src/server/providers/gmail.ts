@@ -6,6 +6,7 @@ import type {
   ProviderConfig,
   SecretStore,
 } from '../../shared/types';
+import { getGmailConfig } from '../gmail-config';
 
 const GMAIL_REDIRECT_PATH = '/api/oauth/gmail/callback';
 const GMAIL_SCOPES = 'https://www.googleapis.com/auth/gmail.readonly';
@@ -69,15 +70,17 @@ export class GmailProvider implements Provider<GmailProviderArgs> {
     this.id = config.id;
   }
 
-  authInitURL(args: GmailProviderArgs, baseURL: string): string {
+  authInitURL(_args: GmailProviderArgs, baseURL: string): string {
+    const creds = getGmailConfig();
     const params = new URLSearchParams({
-      client_id: args.credentials.clientId,
+      client_id: creds.clientId,
       redirect_uri: `${baseURL}${GMAIL_REDIRECT_PATH}`,
       response_type: 'code',
       scope: GMAIL_SCOPES,
       access_type: 'offline',
       prompt: 'consent',
       state: this.id,
+      login_hint: creds.email,
     });
     return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
   }
@@ -86,16 +89,14 @@ export class GmailProvider implements Provider<GmailProviderArgs> {
     secrets.set(gmailRefreshTokenKey(this.id), refreshToken);
   }
 
-  private async getAccessToken(
-    credentials: GmailProviderArgs['credentials'],
-    refreshToken: string,
-  ): Promise<string> {
+  private async getAccessToken(refreshToken: string): Promise<string> {
+    const creds = getGmailConfig();
     const res = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
-        client_id: credentials.clientId,
-        client_secret: credentials.clientSecret,
+        client_id: creds.clientId,
+        client_secret: creds.clientSecret,
         refresh_token: refreshToken,
         grant_type: 'refresh_token',
       }),
@@ -136,10 +137,7 @@ export class GmailProvider implements Provider<GmailProviderArgs> {
       };
     }
 
-    const accessToken = await this.getAccessToken(
-      args.credentials,
-      refreshToken,
-    );
+    const accessToken = await this.getAccessToken(refreshToken);
 
     const listData = await this.gmailGet<GmailListResponse>(
       accessToken,
@@ -171,18 +169,22 @@ export class GmailProvider implements Provider<GmailProviderArgs> {
   }
 }
 
+interface GmailTokenExchangeResult {
+  refreshToken: string;
+  accessToken: string;
+}
+
 export async function exchangeGmailCode(
-  clientId: string,
-  clientSecret: string,
   code: string,
   redirectUri: string,
-): Promise<string> {
+): Promise<GmailTokenExchangeResult> {
+  const creds = getGmailConfig();
   const res = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
-      client_id: clientId,
-      client_secret: clientSecret,
+      client_id: creds.clientId,
+      client_secret: creds.clientSecret,
       code,
       grant_type: 'authorization_code',
       redirect_uri: redirectUri,
@@ -197,5 +199,21 @@ export async function exchangeGmailCode(
   if (!data.refresh_token) {
     throw new Error('No refresh_token returned from token exchange');
   }
-  return data.refresh_token;
+  return { refreshToken: data.refresh_token, accessToken: data.access_token };
+}
+
+export async function getGmailProfileEmail(
+  accessToken: string,
+): Promise<string> {
+  const res = await fetch(
+    'https://gmail.googleapis.com/gmail/v1/users/me/profile',
+    { headers: { Authorization: `Bearer ${accessToken}` } },
+  );
+  if (!res.ok) {
+    throw new Error(
+      `Failed to fetch Gmail profile: ${res.status} ${await res.text()}`,
+    );
+  }
+  const data = (await res.json()) as { emailAddress: string };
+  return data.emailAddress;
 }

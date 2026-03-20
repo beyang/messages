@@ -3,3 +3,4 @@ dist
 data
 .svelte-kit
 build
+gmail.json

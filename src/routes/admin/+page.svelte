@@ -6,21 +6,15 @@ let { data, form }: { data: PageData; form: ActionData } = $props();
 let showModal = $state(false);
 let showInboxModal = $state(false);
 let selectedType = $state('dummy');
-let providerIdInput: HTMLInputElement | undefined;
-let inboxIdInput: HTMLInputElement | undefined;
+let providerIdInput = $state<HTMLInputElement | undefined>();
+let inboxIdInput = $state<HTMLInputElement | undefined>();
 
 let gmailSearchQuery = $state('');
-let gmailClientId = $state('');
-let gmailClientSecret = $state('');
 
 let argsJson = $derived.by(() => {
   if (selectedType === 'gmail') {
     return JSON.stringify({
       searchQuery: gmailSearchQuery,
-      credentials: {
-        clientId: gmailClientId,
-        clientSecret: gmailClientSecret,
-      },
     });
   }
   return '';
@@ -29,8 +23,6 @@ let argsJson = $derived.by(() => {
 function resetModal() {
   selectedType = 'dummy';
   gmailSearchQuery = '';
-  gmailClientId = '';
-  gmailClientSecret = '';
 }
 
 async function openProviderModal() {
@@ -161,14 +153,6 @@ function closeInboxModal() {
           <label>
             Search Query
             <input bind:value={gmailSearchQuery} required placeholder="label:inbox" />
-          </label>
-          <label>
-            Client ID
-            <input bind:value={gmailClientId} required placeholder="123456.apps.googleusercontent.com" />
-          </label>
-          <label>
-            Client Secret
-            <input type="password" bind:value={gmailClientSecret} required placeholder="GOCSPX-..." />
           </label>
         {/if}
 
@@ -398,8 +382,7 @@ function closeInboxModal() {
     color: #cbd5e1;
   }
   .modal input,
-  .modal select,
-  .modal textarea {
+  .modal select {
     display: block;
     width: 100%;
     margin-top: 0.25rem;
@@ -413,8 +396,7 @@ function closeInboxModal() {
     box-sizing: border-box;
   }
   .modal input:focus,
-  .modal select:focus,
-  .modal textarea:focus {
+  .modal select:focus {
     outline: none;
     border-color: #3b82f6;
   }

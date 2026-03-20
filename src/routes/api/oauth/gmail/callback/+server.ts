@@ -1,11 +1,13 @@
 import type { RequestHandler } from '@sveltejs/kit';
 import { json } from '@sveltejs/kit';
+import { getGmailConfig } from '../../../../../server/gmail-config';
 import { instantiateProvider } from '../../../../../server/providers';
-import { exchangeGmailCode } from '../../../../../server/providers/gmail';
+import {
+  exchangeGmailCode,
+  getGmailProfileEmail,
+} from '../../../../../server/providers/gmail';
 import { SqliteSecretStore } from '../../../../../server/secret-store';
 import { getInboxProviders, listInboxes } from '../../../../../server/store';
-import type { GmailProviderArgs } from '../../../../../shared/gmail-types';
-
 export const GET: RequestHandler = async ({ url }) => {
   const code = url.searchParams.get('code');
   const providerId = url.searchParams.get('state');
@@ -33,15 +35,23 @@ export const GET: RequestHandler = async ({ url }) => {
     return json({ error: 'Provider not found.' }, { status: 404 });
   }
 
-  const args = providerConfig.args as GmailProviderArgs;
   const redirectUri = `${url.origin}/api/oauth/gmail/callback`;
 
-  const refreshToken = await exchangeGmailCode(
-    args.credentials.clientId,
-    args.credentials.clientSecret,
+  const { refreshToken, accessToken } = await exchangeGmailCode(
     code,
     redirectUri,
   );
+
+  const profileEmail = await getGmailProfileEmail(accessToken);
+  const config = getGmailConfig();
+  if (profileEmail.toLowerCase() !== config.email.toLowerCase()) {
+    return json(
+      {
+        error: `Authorized account (${profileEmail}) does not match configured email (${config.email}).`,
+      },
+      { status: 403 },
+    );
+  }
 
   const secrets = new SqliteSecretStore();
   const provider = instantiateProvider(providerConfig);
