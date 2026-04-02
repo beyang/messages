@@ -17,7 +17,7 @@
     "db:reset": "tsx src/scripts/db.ts reset",
     "test": "vitest run",
     "lint": "biome check src",
-    "fix": "biome check --fix src && UPDATE_SCHEMA=true vitest run src/server/schema.test.ts"
+    "fix": "biome check --write --unsafe src && UPDATE_SCHEMA=true vitest run src/server/schema.test.ts"
   },
   "dependencies": {
     "better-sqlite3": "^11.9.1",
