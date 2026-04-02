@@ -111,7 +111,7 @@ function parseProviders(providersJSON: string): ProviderConfig[] {
 function inboxFromRow(database: Database.Database, row: InboxRow): Inbox {
   return {
     id: row.id,
-    threads: getConvoRowsByInbox(database, row.id).map(convoFromRow),
+    convos: getConvoRowsByInbox(database, row.id).map(convoFromRow),
     providers: parseProviders(row.providersJSON),
   };
 }
@@ -132,7 +132,7 @@ export function createInbox(id: string): Inbox {
   database
     .prepare('INSERT INTO inbox (id, providers_json) VALUES (?, ?)')
     .run(id, '[]');
-  return { id, threads: [], providers: [] };
+  return { id, convos: [], providers: [] };
 }
 
 export function deleteInbox(id: string): boolean {
@@ -338,7 +338,7 @@ export function seedDummyData(): void {
     for (const inbox of DUMMY_DATA) {
       insertInbox.run(inbox.id, JSON.stringify(inbox.providers));
 
-      for (const convo of inbox.threads) {
+      for (const convo of inbox.convos) {
         insertConvo.run({
           id: convo.id,
           sourceURL: convo.sourceURL,

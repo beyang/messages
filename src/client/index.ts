@@ -2,7 +2,7 @@ import blessed from 'blessed';
 import type { Convo, Inbox } from '../shared/types';
 import { MessagesApi } from './api';
 
-type FocusPane = 'inboxes' | 'threads';
+type FocusPane = 'inboxes' | 'convos';
 
 const FOOTER_HEIGHT = 6;
 const MAIN_PANE_HEIGHT = `100%-${FOOTER_HEIGHT}`;
@@ -10,7 +10,7 @@ const MAIN_PANE_HEIGHT = `100%-${FOOTER_HEIGHT}`;
 interface AppState {
   inboxes: Inbox[];
   selectedInboxIndex: number;
-  selectedThreadIndex: number;
+  selectedConvoIndex: number;
   focusPane: FocusPane;
   status: string;
 }
@@ -21,7 +21,7 @@ const api = new MessagesApi(serverURL);
 const state: AppState = {
   inboxes: [],
   selectedInboxIndex: 0,
-  selectedThreadIndex: 0,
+  selectedConvoIndex: 0,
   focusPane: 'inboxes',
   status: `Connecting to ${serverURL}...`,
 };
@@ -51,14 +51,14 @@ const inboxList = blessed.list({
   },
 });
 
-const threadList = blessed.list({
+const convoList = blessed.list({
   parent: screen,
   top: 0,
   left: '25%',
   width: '30%',
   height: MAIN_PANE_HEIGHT,
   border: 'line',
-  label: ' Threads ',
+  label: ' Convos ',
   mouse: true,
   tags: true,
   style: {
@@ -132,13 +132,13 @@ function currentInbox(): Inbox | null {
   return state.inboxes[state.selectedInboxIndex] ?? null;
 }
 
-function currentThreads(): Convo[] {
-  return currentInbox()?.threads ?? [];
+function currentConvos(): Convo[] {
+  return currentInbox()?.convos ?? [];
 }
 
-function currentThread(): Convo | null {
-  const threads = currentThreads();
-  return threads[state.selectedThreadIndex] ?? null;
+function currentConvo(): Convo | null {
+  const convos = currentConvos();
+  return convos[state.selectedConvoIndex] ?? null;
 }
 
 function setStatus(message: string): void {
@@ -147,7 +147,7 @@ function setStatus(message: string): void {
 
 function renderInboxes(): void {
   const items = state.inboxes.map(
-    (inbox) => `${escapeTags(inbox.id)} (${inbox.threads.length})`,
+    (inbox) => `${escapeTags(inbox.id)} (${inbox.convos.length})`,
   );
   inboxList.setItems(
     items.length > 0 ? items : ['{gray-fg}(no inboxes){/gray-fg}'],
@@ -160,37 +160,37 @@ function renderInboxes(): void {
   }
 }
 
-function renderThreads(): void {
-  const threads = currentThreads();
-  const items = threads.map(
-    (thread) => `${escapeTags(thread.sourceURL)} (${thread.messages.length})`,
+function renderConvos(): void {
+  const convos = currentConvos();
+  const items = convos.map(
+    (convo) => `${escapeTags(convo.sourceURL)} (${convo.messages.length})`,
   );
-  threadList.setItems(
-    items.length > 0 ? items : ['{gray-fg}(no threads){/gray-fg}'],
+  convoList.setItems(
+    items.length > 0 ? items : ['{gray-fg}(no convos){/gray-fg}'],
   );
 
   if (items.length > 0) {
-    threadList.select(state.selectedThreadIndex);
+    convoList.select(state.selectedConvoIndex);
   } else {
-    threadList.select(0);
+    convoList.select(0);
   }
 }
 
 function renderMessages(): void {
-  const thread = currentThread();
-  if (!thread) {
+  const convo = currentConvo();
+  if (!convo) {
     messagesBox.setContent(
-      '{gray-fg}Select a thread to read messages.{/gray-fg}',
+      '{gray-fg}Select a convo to read messages.{/gray-fg}',
     );
     return;
   }
 
-  if (thread.messages.length === 0) {
-    messagesBox.setContent('{gray-fg}No messages in this thread.{/gray-fg}');
+  if (convo.messages.length === 0) {
+    messagesBox.setContent('{gray-fg}No messages in this convo.{/gray-fg}');
     return;
   }
 
-  const content = thread.messages
+  const content = convo.messages
     .map(
       (message, index) =>
         `{bold}${index + 1}. ${escapeTags(message.sourceURL)}{/bold}\n${escapeTags(message.content)}`,
@@ -202,10 +202,10 @@ function renderMessages(): void {
 }
 
 function renderFooter(): void {
-  const selectedThread = currentThread();
-  const selectedThreadLabel = selectedThread
-    ? `Selected thread: ${selectedThread.sourceURL}`
-    : 'Selected thread: (none)';
+  const selectedConvo = currentConvo();
+  const selectedConvoLabel = selectedConvo
+    ? `Selected convo: ${selectedConvo.sourceURL}`
+    : 'Selected convo: (none)';
 
   const inbox = currentInbox();
   const providerLabel = inbox
@@ -216,29 +216,29 @@ function renderFooter(): void {
     [
       escapeTags(state.status),
       '{bold}Keys{/bold}: ↑/↓ move · tab switch pane · R refresh · f fetch providers · p add provider · q quit',
-      escapeTags(`${providerLabel} · ${selectedThreadLabel}`),
+      escapeTags(`${providerLabel} · ${selectedConvoLabel}`),
     ].join('\n'),
   );
 }
 
 function renderBorders(): void {
   inboxList.style.border.fg = state.focusPane === 'inboxes' ? 'cyan' : 'white';
-  threadList.style.border.fg = state.focusPane === 'threads' ? 'cyan' : 'white';
+  convoList.style.border.fg = state.focusPane === 'convos' ? 'cyan' : 'white';
 }
 
 function renderAll(): void {
   renderInboxes();
-  renderThreads();
+  renderConvos();
   renderMessages();
   renderFooter();
   renderBorders();
   screen.render();
 }
 
-function syncThreadSelection(): void {
-  state.selectedThreadIndex = clampIndex(
-    state.selectedThreadIndex,
-    currentThreads().length,
+function syncConvoSelection(): void {
+  state.selectedConvoIndex = clampIndex(
+    state.selectedConvoIndex,
+    currentConvos().length,
   );
 }
 
@@ -252,30 +252,30 @@ function moveSelection(step: number): void {
       state.selectedInboxIndex + step,
       state.inboxes.length,
     );
-    state.selectedThreadIndex = 0;
+    state.selectedConvoIndex = 0;
     renderAll();
     return;
   }
 
-  const threads = currentThreads();
-  if (threads.length === 0) {
+  const convos = currentConvos();
+  if (convos.length === 0) {
     return;
   }
 
-  state.selectedThreadIndex = clampIndex(
-    state.selectedThreadIndex + step,
-    threads.length,
+  state.selectedConvoIndex = clampIndex(
+    state.selectedConvoIndex + step,
+    convos.length,
   );
   renderAll();
 }
 
 function cycleFocusPane(): void {
-  state.focusPane = state.focusPane === 'inboxes' ? 'threads' : 'inboxes';
+  state.focusPane = state.focusPane === 'inboxes' ? 'convos' : 'inboxes';
   renderAll();
 }
 
 async function refreshData(statusMessage: string): Promise<void> {
-  const previousThread = currentThread()?.sourceURL;
+  const previousConvo = currentConvo()?.sourceURL;
 
   try {
     state.inboxes = await api.listInboxes();
@@ -284,19 +284,19 @@ async function refreshData(statusMessage: string): Promise<void> {
       state.inboxes.length,
     );
 
-    if (previousThread) {
+    if (previousConvo) {
       const inbox = currentInbox();
       if (inbox) {
-        const nextThreadIndex = inbox.threads.findIndex(
-          (thread) => thread.sourceURL === previousThread,
+        const nextConvoIndex = inbox.convos.findIndex(
+          (convo) => convo.sourceURL === previousConvo,
         );
-        if (nextThreadIndex >= 0) {
-          state.selectedThreadIndex = nextThreadIndex;
+        if (nextConvoIndex >= 0) {
+          state.selectedConvoIndex = nextConvoIndex;
         }
       }
     }
 
-    syncThreadSelection();
+    syncConvoSelection();
     setStatus(statusMessage);
 
     if (state.inboxes.length === 0) {
@@ -325,7 +325,7 @@ screen.key(['left', 'h'], () => {
 });
 
 screen.key(['right', 'l'], () => {
-  state.focusPane = 'threads';
+  state.focusPane = 'convos';
   renderAll();
 });
 
@@ -445,18 +445,18 @@ inboxList.on('select', (_item, index) => {
   }
 
   state.selectedInboxIndex = clampIndex(index, state.inboxes.length);
-  state.selectedThreadIndex = 0;
+  state.selectedConvoIndex = 0;
   state.focusPane = 'inboxes';
   renderAll();
 });
 
-threadList.on('select', (_item, index) => {
+convoList.on('select', (_item, index) => {
   if (typeof index !== 'number') {
     return;
   }
 
-  state.selectedThreadIndex = clampIndex(index, currentThreads().length);
-  state.focusPane = 'threads';
+  state.selectedConvoIndex = clampIndex(index, currentConvos().length);
+  state.focusPane = 'convos';
   renderAll();
 });
 

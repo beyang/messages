@@ -4,7 +4,7 @@ export const DUMMY_DATA: Inbox[] = [
   {
     id: 'personal',
     providers: [{ id: 'dummy-1', type: 'dummy', args: null }],
-    threads: [
+    convos: [
       {
         id: 'convo-alex',
         sourceURL: 'https://chat.example.com/threads/alex',
@@ -37,7 +37,7 @@ export const DUMMY_DATA: Inbox[] = [
   {
     id: 'work',
     providers: [],
-    threads: [
+    convos: [
       {
         id: 'convo-phoenix',
         sourceURL: 'https://mail.example.com/threads/project-phoenix',

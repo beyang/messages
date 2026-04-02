@@ -26,7 +26,7 @@ export interface ProviderConfig<A extends JsonSerializable = JsonSerializable> {
 
 export interface Inbox {
   id: string;
-  threads: Convo[];
+  convos: Convo[];
   providers: ProviderConfig[];
 }
 
