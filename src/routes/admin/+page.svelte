@@ -126,7 +126,7 @@ async function startAuth() {
               {#each table.rows as row}
                 <tr>
                   {#each table.columns as col}
-                    <td><pre>{String(row[col] ?? '')}</pre></td>
+                    <td><pre>{(() => { const v = String(row[col] ?? ''); try { const p = JSON.parse(v); return typeof p === 'object' && p !== null ? JSON.stringify(p, null, 2) : v; } catch { return v; } })()}</pre></td>
                   {/each}
                   {#if name === 'inbox'}
                     <td>
@@ -372,8 +372,9 @@ async function startAuth() {
   }
   td pre {
     margin: 0;
-    white-space: pre-wrap;
-    word-break: break-all;
+    white-space: pre;
+    overflow-x: auto;
+    max-width: 480px;
     font-family: ui-monospace, monospace;
     font-size: 0.8rem;
   }
