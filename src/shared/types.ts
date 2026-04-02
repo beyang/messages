@@ -2,6 +2,7 @@ export interface Message {
   id: string;
   sourceURL: string;
   content: string;
+  subject?: string;
 }
 
 export interface Convo {
@@ -33,6 +34,7 @@ export interface Inbox {
 export type FetchConvosResult = {
   convos: Convo[];
   needsAuth?: { url: string };
+  errors?: string[];
 };
 
 export interface SecretStore {

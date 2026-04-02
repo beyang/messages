@@ -10,13 +10,24 @@ export async function refreshInbox(
   const result: FetchConvosResult = { convos: [] };
 
   for (const config of configs) {
-    const fetchResult = await fetchConvosFromProvider(config, secrets);
-    if (fetchResult.needsAuth) {
-      result.needsAuth = fetchResult.needsAuth;
-    }
-    if (fetchResult.convos.length > 0) {
-      const merged = mergeConvosIntoInbox(inboxID, fetchResult.convos);
-      result.convos.push(...merged);
+    try {
+      const fetchResult = await fetchConvosFromProvider(config, secrets);
+      if (fetchResult.needsAuth) {
+        result.needsAuth = fetchResult.needsAuth;
+      }
+      if (fetchResult.convos.length > 0) {
+        const merged = mergeConvosIntoInbox(inboxID, fetchResult.convos);
+        result.convos.push(...merged);
+      }
+      if (fetchResult.errors) {
+        result.errors = [...(result.errors ?? []), ...fetchResult.errors];
+      }
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      result.errors = [
+        ...(result.errors ?? []),
+        `${config.type}(${config.id}): ${detail}`,
+      ];
     }
   }
 

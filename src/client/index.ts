@@ -162,9 +162,13 @@ function renderInboxes(): void {
 
 function renderConvos(): void {
   const convos = currentConvos();
-  const items = convos.map(
-    (convo) => `${escapeTags(convo.sourceURL)} (${convo.messages.length})`,
-  );
+  const items = convos.map((convo) => {
+    const firstSubject = convo.messages.find((m) => m.subject)?.subject;
+    const label = firstSubject
+      ? escapeTags(firstSubject)
+      : escapeTags(convo.sourceURL);
+    return `${label} (${convo.messages.length})`;
+  });
   convoList.setItems(
     items.length > 0 ? items : ['{gray-fg}(no convos){/gray-fg}'],
   );
@@ -360,9 +364,16 @@ screen.key(['f'], () => {
       setStatus(`Fetching from ${inbox.providers.length} provider(s)...`);
       renderAll();
       const result = await api.fetchProviders(inbox.id);
-      await refreshData(
+      const parts: string[] = [
         `Fetched ${result.fetched} conversation(s) from providers.`,
-      );
+      ];
+      if (result.needsAuth) {
+        parts.push(`Auth required: ${serverURL}${result.needsAuth.url}`);
+      }
+      if (result.errors?.length) {
+        parts.push(`Errors: ${result.errors.join('; ')}`);
+      }
+      await refreshData(parts.join(' | '));
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
       setStatus(`Fetch failed: ${detail}`);

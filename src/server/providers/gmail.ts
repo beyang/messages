@@ -23,6 +23,7 @@ interface GmailListResponse {
 interface GmailMessagePart {
   mimeType: string;
   body?: { data?: string };
+  headers?: { name: string; value: string }[];
   parts?: GmailMessagePart[];
 }
 
@@ -158,11 +159,17 @@ export class GmailProvider implements Provider<GmailProviderArgs> {
         return {
           id: `gmail-${threadId}`,
           sourceURL: `https://mail.google.com/mail/u/0/#inbox/${threadId}`,
-          messages: thread.messages.map((msg) => ({
-            id: msg.id,
-            sourceURL: `https://mail.google.com/mail/u/0/#inbox/${msg.id}`,
-            content: extractPlainText(msg.payload),
-          })),
+          messages: thread.messages.map((msg) => {
+            const subject = msg.payload.headers?.find(
+              (h) => h.name.toLowerCase() === 'subject',
+            )?.value;
+            return {
+              id: msg.id,
+              sourceURL: `https://mail.google.com/mail/u/0/#inbox/${msg.id}`,
+              content: extractPlainText(msg.payload),
+              ...(subject ? { subject } : {}),
+            };
+          }),
         };
       }),
     );

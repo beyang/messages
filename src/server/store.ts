@@ -44,13 +44,18 @@ function parseMessages(
     const id = (entry as { id?: unknown }).id;
     const sourceURL = (entry as { sourceURL?: unknown }).sourceURL;
     const content = (entry as { content?: unknown }).content;
+    const subject = (entry as { subject?: unknown }).subject;
 
     if (
       typeof id === 'string' &&
       typeof sourceURL === 'string' &&
       typeof content === 'string'
     ) {
-      messages.push({ id, sourceURL, content });
+      const msg: Message = { id, sourceURL, content };
+      if (typeof subject === 'string') {
+        msg.subject = subject;
+      }
+      messages.push(msg);
     }
   }
 

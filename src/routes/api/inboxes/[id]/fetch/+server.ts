@@ -17,5 +17,6 @@ export const POST: RequestHandler = async ({ params }) => {
     fetched: result.convos.length,
     convos: result.convos,
     needsAuth: result.needsAuth,
+    errors: result.errors,
   });
 };

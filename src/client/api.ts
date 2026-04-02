@@ -35,9 +35,12 @@ export class MessagesApi {
     );
   }
 
-  async fetchProviders(
-    inboxID: string,
-  ): Promise<{ fetched: number; convos: Convo[] }> {
+  async fetchProviders(inboxID: string): Promise<{
+    fetched: number;
+    convos: Convo[];
+    errors?: string[];
+    needsAuth?: { url: string };
+  }> {
     return this.request(`/api/inboxes/${encodeURIComponent(inboxID)}/fetch`, {
       method: 'POST',
     });
