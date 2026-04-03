@@ -1,6 +1,12 @@
 import type Database from 'better-sqlite3';
 
-import type { Convo, Inbox, Message, ProviderConfig } from '../shared/types';
+import {
+  type Convo,
+  type Inbox,
+  type Message,
+  messageSchema,
+  type ProviderConfig,
+} from '../shared/types';
 import { initializeDatabase } from './db';
 import { DUMMY_DATA } from './dummy-data';
 
@@ -35,31 +41,10 @@ function parseMessages(
     return [];
   }
 
-  const messages: Message[] = [];
-  for (const entry of parsed) {
-    if (!entry || typeof entry !== 'object') {
-      continue;
-    }
-
-    const id = (entry as { id?: unknown }).id;
-    const sourceURL = (entry as { sourceURL?: unknown }).sourceURL;
-    const content = (entry as { content?: unknown }).content;
-    const subject = (entry as { subject?: unknown }).subject;
-
-    if (
-      typeof id === 'string' &&
-      typeof sourceURL === 'string' &&
-      typeof content === 'string'
-    ) {
-      const msg: Message = { id, sourceURL, content };
-      if (typeof subject === 'string') {
-        msg.subject = subject;
-      }
-      messages.push(msg);
-    }
-  }
-
-  return messages;
+  return parsed.flatMap((entry) => {
+    const result = messageSchema.safeParse(entry);
+    return result.success ? [result.data] : [];
+  });
 }
 
 function convoFromRow(row: ConvoRow): Convo {

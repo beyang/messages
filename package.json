@@ -22,7 +22,8 @@
   "dependencies": {
     "better-sqlite3": "^11.9.1",
     "blessed": "^0.1.81",
-    "svelte": "^5.53.13"
+    "svelte": "^5.53.13",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.8",
