@@ -1,6 +1,7 @@
 <script lang="ts">
 import { tick } from 'svelte';
 import type { ActionData, PageData } from './$types';
+import CodeMirrorEditor from './CodeMirrorEditor.svelte';
 
 let { data, form }: { data: PageData; form: ActionData } = $props();
 let showModal = $state(false);
@@ -47,6 +48,19 @@ async function openInboxModal() {
 
 function closeInboxModal() {
   showInboxModal = false;
+}
+
+let editingCell = $state<{ table: string; pkValue: string; column: string } | null>(null);
+let editValue = $state('');
+
+function startEdit(tableName: string, pkValue: string, column: string, currentValue: string) {
+  editingCell = { table: tableName, pkValue, column };
+  editValue = currentValue;
+}
+
+function cancelEdit() {
+  editingCell = null;
+  editValue = '';
 }
 
 let showAuthModal = $state(false);
@@ -126,7 +140,27 @@ async function startAuth() {
               {#each table.rows as row}
                 <tr>
                   {#each table.columns as col}
-                    <td><pre>{(() => { const v = String(row[col] ?? ''); try { const p = JSON.parse(v); return typeof p === 'object' && p !== null ? JSON.stringify(p, null, 2) : v; } catch { return v; } })()}</pre></td>
+                    {@const rawValue = String(row[col] ?? '')}
+                    {@const pkValue = String(row[table.primaryKey] ?? '')}
+                    {@const isEditing = editingCell?.table === name && editingCell?.pkValue === pkValue && editingCell?.column === col}
+                    <td>
+                      {#if isEditing}
+                        <form method="POST" action="?/updateCell" class="inline-form">
+                          <input type="hidden" name="tableName" value={name} />
+                          <input type="hidden" name="pkValue" value={pkValue} />
+                          <input type="hidden" name="column" value={col} />
+                          <input type="hidden" name="value" value={editValue} />
+                          <CodeMirrorEditor bind:value={editValue} oncancel={cancelEdit} />
+                          <div class="edit-actions">
+                            <button type="submit" class="save-btn">Save</button>
+                            <button type="button" class="cancel-btn" onclick={cancelEdit}>Cancel</button>
+                          </div>
+                        </form>
+                      {:else}
+                        <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_to_interactive_role -->
+                        <pre class="editable-cell" role="button" tabindex="0" onclick={() => startEdit(name, pkValue, col, rawValue)}>{(() => { const v = rawValue; try { const p = JSON.parse(v); return typeof p === 'object' && p !== null ? JSON.stringify(p, null, 2) : v; } catch { return v; } })()}</pre>
+                      {/if}
+                    </td>
                   {/each}
                   {#if name === 'inbox'}
                     <td>
@@ -387,6 +421,49 @@ async function startAuth() {
 
   .inline-form {
     margin: 0;
+  }
+
+  .editable-cell {
+    cursor: pointer;
+    border-radius: 3px;
+    padding: 2px 4px;
+    margin: -2px -4px;
+  }
+  .editable-cell:hover {
+    background: #334155;
+    outline: 1px dashed #64748b;
+  }
+
+  .edit-actions {
+    display: flex;
+    gap: 0.25rem;
+    margin-top: 0.25rem;
+  }
+
+  .save-btn {
+    padding: 0.2rem 0.5rem;
+    background: #16a34a;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.75rem;
+  }
+  .save-btn:hover {
+    background: #15803d;
+  }
+
+  .cancel-btn {
+    padding: 0.2rem 0.5rem;
+    background: #475569;
+    color: #e2e8f0;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.75rem;
+  }
+  .cancel-btn:hover {
+    background: #64748b;
   }
 
   .delete-btn {

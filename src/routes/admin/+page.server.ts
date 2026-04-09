@@ -15,6 +15,7 @@ interface TablePage {
   total: number;
   page: number;
   pageSize: number;
+  primaryKey: string;
 }
 
 function isInboxAlreadyExistsError(error: unknown): boolean {
@@ -27,6 +28,20 @@ function isInboxAlreadyExistsError(error: unknown): boolean {
     code === 'SQLITE_CONSTRAINT_PRIMARYKEY' ||
     error.message.includes('UNIQUE constraint failed: inbox.id')
   );
+}
+
+const ALLOWED_TABLES = new Set(['inbox', 'convo', 'provider_secrets']);
+
+function getTablePrimaryKey(
+  db: ReturnType<typeof initializeDatabase>,
+  tableName: string,
+): string {
+  const info = db.prepare(`PRAGMA table_info(${tableName})`).all() as {
+    name: string;
+    pk: number;
+  }[];
+  const pkCol = info.find((c) => c.pk === 1);
+  return pkCol?.name ?? 'id';
 }
 
 function queryTable(
@@ -55,7 +70,9 @@ function queryTable(
           }[]
         ).map((c) => c.name);
 
-  return { columns, rows, total, page, pageSize };
+  const primaryKey = getTablePrimaryKey(db, tableName);
+
+  return { columns, rows, total, page, pageSize, primaryKey };
 }
 
 export const load: PageServerLoad = ({ url }) => {
@@ -149,5 +166,42 @@ export const actions: Actions = {
     if (!deleted) return fail(404, { error: 'Inbox not found.' });
 
     return { success: 'Inbox deleted.' };
+  },
+  updateCell: async ({ request }) => {
+    const form = await request.formData();
+    const tableName = form.get('tableName') as string | null;
+    const pkValue = form.get('pkValue') as string | null;
+    const column = form.get('column') as string | null;
+    const value = form.get('value') as string | null;
+
+    if (!tableName?.trim())
+      return fail(400, { error: 'Table name is required.' });
+    if (!ALLOWED_TABLES.has(tableName.trim()))
+      return fail(400, { error: 'Invalid table name.' });
+    if (pkValue === null || pkValue === undefined)
+      return fail(400, { error: 'Primary key value is required.' });
+    if (!column?.trim())
+      return fail(400, { error: 'Column name is required.' });
+
+    const db = initializeDatabase();
+    const table = tableName.trim();
+    const col = column.trim();
+
+    const tableInfo = db.prepare(`PRAGMA table_info(${table})`).all() as {
+      name: string;
+      pk: number;
+    }[];
+    const validColumns = tableInfo.map((c) => c.name);
+    if (!validColumns.includes(col))
+      return fail(400, { error: `Invalid column: ${col}` });
+
+    const pk = getTablePrimaryKey(db, table);
+
+    db.prepare(`UPDATE ${table} SET ${col} = ? WHERE ${pk} = ?`).run(
+      value,
+      pkValue,
+    );
+
+    return { success: `Updated ${table}.${col}.` };
   },
 };
