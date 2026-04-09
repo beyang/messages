@@ -224,7 +224,6 @@ export class SlackProvider implements Provider<SlackProviderArgs> {
         grouped.sourceURL = match.permalink;
       }
 
-      const channelName = match.channel?.name?.trim();
       const username = match.username?.trim();
       grouped.messages.push({
         ts,
@@ -232,7 +231,6 @@ export class SlackProvider implements Provider<SlackProviderArgs> {
           id: `slack-${channelID}-${sanitizeSlackTimestamp(ts)}`,
           sourceURL: messageSourceURL(match, channelID, ts),
           content: match.text ?? '',
-          ...(channelName ? { subject: `#${channelName}` } : {}),
           ...(username ? { author: { username } } : {}),
         },
       });
