@@ -1,7 +1,7 @@
 import { Box, render, Text, useApp, useInput } from 'ink';
 import type React from 'react';
 import { useCallback, useEffect, useState } from 'react';
-import type { Convo, Inbox } from '../shared/types.js';
+import type { Convo, Inbox, Message } from '../shared/types.js';
 import { MessagesApi } from './api.js';
 
 const serverURL = process.env.MESSAGES_SERVER_URL ?? 'http://localhost:3000';
@@ -16,13 +16,29 @@ function clamp(index: number, length: number): number {
   return index;
 }
 
+function MessagePreview({ message }: { message: Message }) {
+  const author = message.author?.displayName ?? message.author?.username;
+  return (
+    <Box flexDirection="column">
+      <Text wrap="truncate">
+        {author}
+        {author && message.subject ? ', ' : ''}
+        {message.subject && <Text bold>{message.subject}</Text>}
+      </Text>
+      <Text wrap="truncate" dimColor>
+        {message.content}
+      </Text>
+    </Box>
+  );
+}
+
 function SelectableList({
   items,
   selectedIndex,
   emptyLabel,
   isFocused,
 }: {
-  items: string[];
+  items: React.ReactNode[];
   selectedIndex: number;
   emptyLabel: string;
   isFocused: boolean;
@@ -35,16 +51,28 @@ function SelectableList({
       {items.map((item, i) => {
         const isSelected = i === selectedIndex;
         return (
-          <Text
-            // biome-ignore lint/suspicious/noArrayIndexKey: items are plain strings without stable IDs
+          <Box
+            // biome-ignore lint/suspicious/noArrayIndexKey: items lack stable IDs
             key={i}
-            bold={isSelected}
-            inverse={isSelected && isFocused}
-            wrap="truncate"
+            flexDirection="row"
           >
-            {isSelected ? '❯ ' : '  '}
-            {item}
-          </Text>
+            <Text bold={isSelected} inverse={isSelected && isFocused}>
+              {isSelected ? '❯ ' : '  '}
+            </Text>
+            <Box flexGrow={1} flexDirection="column">
+              {typeof item === 'string' ? (
+                <Text
+                  bold={isSelected}
+                  inverse={isSelected && isFocused}
+                  wrap="truncate"
+                >
+                  {item}
+                </Text>
+              ) : (
+                item
+              )}
+            </Box>
+          </Box>
         );
       })}
     </Box>
@@ -82,6 +110,23 @@ function Pane({
   );
 }
 
+function MessageFull({ message }: { message: Message }) {
+  const authorLabel = message.author
+    ? message.author.displayName
+      ? `${message.author.displayName} <${message.author.username}>`
+      : message.author.username
+    : 'Unknown';
+  return (
+    <Box flexDirection="column" marginBottom={1}>
+      <Text bold>From: {authorLabel}</Text>
+      <Text dimColor>{message.timestamp ?? ''}</Text>
+      <Text dimColor>{message.sourceURL}</Text>
+      <Text> </Text>
+      <Text>{message.content}</Text>
+    </Box>
+  );
+}
+
 function MessageView({ convo }: { convo: Convo | null }) {
   if (!convo) {
     return <Text dimColor>Select a convo to read messages.</Text>;
@@ -91,22 +136,8 @@ function MessageView({ convo }: { convo: Convo | null }) {
   }
   return (
     <Box flexDirection="column">
-      {convo.messages.map((message, i) => (
-        <Box key={message.id} flexDirection="column" marginBottom={1}>
-          <Text bold>
-            {i + 1}. {message.sourceURL}
-          </Text>
-          {message.author && (
-            <Text dimColor>
-              From:{' '}
-              {message.author.displayName
-                ? `${message.author.displayName} <${message.author.username}>`
-                : message.author.username}
-            </Text>
-          )}
-          {message.subject && <Text dimColor>Subject: {message.subject}</Text>}
-          <Text>{message.content}</Text>
-        </Box>
+      {convo.messages.map((message) => (
+        <MessageFull key={message.id} message={message} />
       ))}
     </Box>
   );
@@ -185,9 +216,11 @@ function App() {
     (inbox) => `${inbox.id} (${inbox.convos.length})`,
   );
   const convoItems = convos.map((convo) => {
-    const firstSubject = convo.messages.find((m) => m.subject)?.subject;
-    const label = firstSubject ?? convo.sourceURL;
-    return `${label} (${convo.messages.length})`;
+    const lastMessage = convo.messages[convo.messages.length - 1];
+    if (lastMessage) {
+      return <MessagePreview key={convo.id} message={lastMessage} />;
+    }
+    return convo.sourceURL;
   });
 
   useInput((input, key) => {

@@ -25,6 +25,7 @@ export interface Message {
   content: string;
   subject?: string;
   author?: Author;
+  timestamp?: string;
 }
 
 export const messageSchema: z.ZodType<Message> = z
@@ -34,6 +35,7 @@ export const messageSchema: z.ZodType<Message> = z
     content: z.string(),
     subject: z.unknown().optional(),
     author: authorSchema.optional(),
+    timestamp: z.string().optional(),
   })
   .transform((entry): Message => {
     const message: Message = {
@@ -46,6 +48,9 @@ export const messageSchema: z.ZodType<Message> = z
     }
     if (entry.author) {
       message.author = entry.author;
+    }
+    if (entry.timestamp) {
+      message.timestamp = entry.timestamp;
     }
     return message;
   });
