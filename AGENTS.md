@@ -64,7 +64,6 @@ Run these after code changes:
 1. Install deps if needed: `pnpm install`
 1. Type check: `pnpm typecheck`
 1. Build check: `pnpm build`
-1. Reset and reseed DB: `pnpm db:reset && pnpm db:seed`
 
 Recommended API smoke test:
 
