@@ -12,12 +12,23 @@ let inboxIdInput = $state<HTMLInputElement | undefined>();
 
 let gmailEmail = $state('');
 let gmailSearchQuery = $state('');
+let slackSearchQuery = $state('');
+
+const oauthPathsByProviderType: Record<string, string> = {
+  gmail: '/api/oauth/gmail',
+  slack: '/api/oauth/slack',
+};
 
 let argsJson = $derived.by(() => {
   if (selectedType === 'gmail') {
     return JSON.stringify({
       email: gmailEmail,
       searchQuery: gmailSearchQuery,
+    });
+  }
+  if (selectedType === 'slack') {
+    return JSON.stringify({
+      searchQuery: slackSearchQuery,
     });
   }
   return '';
@@ -27,6 +38,7 @@ function resetModal() {
   selectedType = 'dummy';
   gmailEmail = '';
   gmailSearchQuery = '';
+  slackSearchQuery = '';
 }
 
 async function openProviderModal() {
@@ -86,7 +98,22 @@ function closeAuthModal() {
 async function startAuth() {
   if (!authProviderId) return;
   authError = '';
-  const res = await fetch(`/api/oauth/gmail?provider_id=${encodeURIComponent(authProviderId)}`);
+
+  const selectedProvider = allProviders.find((p) => p.id === authProviderId);
+  if (!selectedProvider) {
+    authError = 'Provider not found.';
+    return;
+  }
+
+  const oauthPath = oauthPathsByProviderType[selectedProvider.type];
+  if (!oauthPath) {
+    authError = `Provider type "${selectedProvider.type}" does not support OAuth.`;
+    return;
+  }
+
+  const res = await fetch(
+    `${oauthPath}?provider_id=${encodeURIComponent(authProviderId)}`,
+  );
   const body = await res.json();
   if (!res.ok) {
     authError = body.error ?? 'Failed to start auth.';
@@ -216,6 +243,7 @@ async function startAuth() {
           <select name="type" required bind:value={selectedType}>
             <option value="dummy">dummy</option>
             <option value="gmail">gmail</option>
+            <option value="slack">slack</option>
           </select>
         </label>
 
@@ -227,6 +255,11 @@ async function startAuth() {
           <label>
             Search Query
             <input bind:value={gmailSearchQuery} required placeholder="label:inbox" />
+          </label>
+        {:else if selectedType === 'slack'}
+          <label>
+            Search Query
+            <input bind:value={slackSearchQuery} required placeholder="in:#engineering incident" />
           </label>
         {/if}
 

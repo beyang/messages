@@ -25,10 +25,10 @@ export const GET: RequestHandler = ({ url }) => {
     return json({ error: 'Provider not found.' }, { status: 404 });
   }
 
-  if (providerConfig.type !== 'gmail') {
+  if (providerConfig.type !== 'slack') {
     return json(
       {
-        error: `Provider "${providerConfig.id}" is type "${providerConfig.type}", not "gmail".`,
+        error: `Provider "${providerConfig.id}" is type "${providerConfig.type}", not "slack".`,
       },
       { status: 400 },
     );
