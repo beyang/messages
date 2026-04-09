@@ -310,6 +310,18 @@ export function mergeConvosIntoInbox(
   return result;
 }
 
+export function clearInbox(inboxID: string): number {
+  const database = initializeDatabase();
+  const result = database
+    .prepare('DELETE FROM convo WHERE inbox_id = ?')
+    .run(inboxID);
+  logger.info(
+    { inboxID, deleted: result.changes },
+    'cleared all convos from inbox',
+  );
+  return result.changes;
+}
+
 export function resetAllData(): void {
   const database = initializeDatabase();
 

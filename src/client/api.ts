@@ -46,6 +46,12 @@ export class MessagesApi {
     });
   }
 
+  async clearInbox(inboxID: string): Promise<{ deleted: number }> {
+    return this.request(`/api/inboxes/${encodeURIComponent(inboxID)}/clear`, {
+      method: 'POST',
+    });
+  }
+
   async deleteProvider(inboxID: string, id: string): Promise<void> {
     await this.request(
       `/api/inboxes/${encodeURIComponent(inboxID)}/providers`,

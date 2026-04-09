@@ -232,7 +232,7 @@ function renderFooter(): void {
   footerBox.setContent(
     [
       escapeTags(state.status),
-      '{bold}Keys{/bold}: ↑/↓ move · tab switch pane · R refresh · f fetch providers · p add provider · q quit',
+      '{bold}Keys{/bold}: ↑/↓ move · tab switch pane · R refresh · f fetch · c clear inbox · p add provider · q quit',
       escapeTags(`${providerLabel} · ${selectedConvoLabel}`),
     ].join('\n'),
   );
@@ -390,6 +390,31 @@ screen.key(['f'], () => {
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
       setStatus(`Fetch failed: ${detail}`);
+      renderAll();
+    }
+  })();
+});
+
+screen.key(['c'], () => {
+  const inbox = currentInbox();
+  if (!inbox) {
+    setStatus('No inbox selected.');
+    renderAll();
+    return;
+  }
+
+  void (async () => {
+    try {
+      setStatus(`Clearing messages from inbox "${inbox.id}"...`);
+      renderAll();
+      const result = await api.clearInbox(inbox.id);
+      state.selectedConvoIndex = 0;
+      await refreshData(
+        `Cleared ${result.deleted} conversation(s) from inbox "${inbox.id}".`,
+      );
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      setStatus(`Clear failed: ${detail}`);
       renderAll();
     }
   })();
