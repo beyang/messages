@@ -1,5 +1,6 @@
 import type { GmailProviderArgs } from '../../shared/gmail-types';
 import type {
+  Author,
   Convo,
   FetchConvosResult,
   Provider,
@@ -102,6 +103,14 @@ function extractMessageContent(part: GmailMessagePart): string {
   }
 
   return '';
+}
+
+function parseFromHeader(from: string): Author {
+  const match = from.match(/^(.+?)\s*<(.+?)>$/);
+  if (match) {
+    return { username: match[2], displayName: match[1].replace(/^"|"$/g, '') };
+  }
+  return { username: from };
 }
 
 function gmailRefreshTokenKey(providerId: string): string {
@@ -209,11 +218,15 @@ export class GmailProvider implements Provider<GmailProviderArgs> {
             const subject = msg.payload.headers?.find(
               (h) => h.name.toLowerCase() === 'subject',
             )?.value;
+            const from = msg.payload.headers?.find(
+              (h) => h.name.toLowerCase() === 'from',
+            )?.value;
             return {
               id: msg.id,
               sourceURL: `https://mail.google.com/mail/u/0/#inbox/${msg.id}`,
               content: extractMessageContent(msg.payload),
               ...(subject ? { subject } : {}),
+              ...(from ? { author: parseFromHeader(from) } : {}),
             };
           }),
         };

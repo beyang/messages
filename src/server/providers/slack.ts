@@ -16,6 +16,7 @@ interface SlackSearchMatch {
   thread_ts?: string;
   text?: string;
   permalink?: string;
+  username?: string;
   channel?: {
     id?: string;
     name?: string;
@@ -224,6 +225,7 @@ export class SlackProvider implements Provider<SlackProviderArgs> {
       }
 
       const channelName = match.channel?.name?.trim();
+      const username = match.username?.trim();
       grouped.messages.push({
         ts,
         message: {
@@ -231,6 +233,7 @@ export class SlackProvider implements Provider<SlackProviderArgs> {
           sourceURL: messageSourceURL(match, channelID, ts),
           content: match.text ?? '',
           ...(channelName ? { subject: `#${channelName}` } : {}),
+          ...(username ? { author: { username } } : {}),
         },
       });
     }

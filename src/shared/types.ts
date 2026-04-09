@@ -2,11 +2,30 @@ import { z } from 'zod';
 
 type AssertTrue<T extends true> = T;
 
+export interface Author {
+  username: string;
+  displayName?: string;
+}
+
+export const authorSchema: z.ZodType<Author> = z
+  .object({
+    username: z.string(),
+    displayName: z.string().optional(),
+  });
+
+type _authorSatisfiesAuthorSchema = AssertTrue<
+  Author extends z.input<typeof authorSchema> ? true : false
+>;
+type _authorSchemaProducesAuthor = AssertTrue<
+  z.output<typeof authorSchema> extends Author ? true : false
+>;
+
 export interface Message {
   id: string;
   sourceURL: string;
   content: string;
   subject?: string;
+  author?: Author;
 }
 
 export const messageSchema: z.ZodType<Message> = z
@@ -15,6 +34,7 @@ export const messageSchema: z.ZodType<Message> = z
     sourceURL: z.string(),
     content: z.string(),
     subject: z.unknown().optional(),
+    author: authorSchema.optional(),
   })
   .transform((entry): Message => {
     const message: Message = {
@@ -24,6 +44,9 @@ export const messageSchema: z.ZodType<Message> = z
     };
     if (typeof entry.subject === 'string') {
       message.subject = entry.subject;
+    }
+    if (entry.author) {
+      message.author = entry.author;
     }
     return message;
   });
