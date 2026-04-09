@@ -1,5 +1,6 @@
-import React, { useState, useCallback, useEffect } from 'react';
-import { render, Box, Text, useInput, useApp } from 'ink';
+import { Box, render, Text, useApp, useInput } from 'ink';
+import type React from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { Convo, Inbox } from '../shared/types.js';
 import { MessagesApi } from './api.js';
 
@@ -35,12 +36,14 @@ function SelectableList({
         const isSelected = i === selectedIndex;
         return (
           <Text
+            // biome-ignore lint/suspicious/noArrayIndexKey: items are plain strings without stable IDs
             key={i}
             bold={isSelected}
             inverse={isSelected && isFocused}
             wrap="truncate"
           >
-            {isSelected ? '❯ ' : '  '}{item}
+            {isSelected ? '❯ ' : '  '}
+            {item}
           </Text>
         );
       })}
@@ -67,7 +70,10 @@ function Pane({
       borderColor={isFocused ? 'cyan' : 'white'}
     >
       <Box>
-        <Text bold color={isFocused ? 'cyan' : 'white'}> {label} </Text>
+        <Text bold color={isFocused ? 'cyan' : 'white'}>
+          {' '}
+          {label}{' '}
+        </Text>
       </Box>
       <Box flexDirection="column" flexGrow={1}>
         {children}
@@ -87,10 +93,13 @@ function MessageView({ convo }: { convo: Convo | null }) {
     <Box flexDirection="column">
       {convo.messages.map((message, i) => (
         <Box key={message.id} flexDirection="column" marginBottom={1}>
-          <Text bold>{i + 1}. {message.sourceURL}</Text>
+          <Text bold>
+            {i + 1}. {message.sourceURL}
+          </Text>
           {message.author && (
             <Text dimColor>
-              From: {message.author.displayName
+              From:{' '}
+              {message.author.displayName
                 ? `${message.author.displayName} <${message.author.username}>`
                 : message.author.username}
             </Text>
@@ -107,12 +116,10 @@ function Footer({
   status,
   inbox,
   convo,
-  serverURL,
 }: {
   status: string;
   inbox: Inbox | null;
   convo: Convo | null;
-  serverURL: string;
 }) {
   const providerLabel = inbox
     ? `Providers: ${inbox.providers.length > 0 ? inbox.providers.map((p) => `${p.id}(${p.type})`).join(', ') : '(none)'}`
@@ -122,10 +129,23 @@ function Footer({
     : 'Selected convo: (none)';
 
   return (
-    <Box flexDirection="column" borderStyle="single" borderColor="white" paddingX={1}>
+    <Box
+      flexDirection="column"
+      borderStyle="single"
+      borderColor="white"
+      paddingX={1}
+    >
       <Text>{status}</Text>
-      <Text bold>Keys: <Text>↑/↓ move · tab switch pane · R refresh · f fetch · c clear inbox · q quit</Text></Text>
-      <Text>{providerLabel} · {convoLabel}</Text>
+      <Text bold>
+        Keys:{' '}
+        <Text>
+          ↑/↓ move · tab switch pane · R refresh · f fetch · c clear inbox · q
+          quit
+        </Text>
+      </Text>
+      <Text>
+        {providerLabel} · {convoLabel}
+      </Text>
     </Box>
   );
 }
@@ -230,7 +250,9 @@ function App() {
         setStatus('No providers configured for this inbox.');
         return;
       }
-      setStatus(`Fetching from ${currentInbox.providers.length} provider(s)...`);
+      setStatus(
+        `Fetching from ${currentInbox.providers.length} provider(s)...`,
+      );
       void (async () => {
         try {
           const result = await api.fetchProviders(currentInbox.id);
@@ -297,12 +319,7 @@ function App() {
           <MessageView convo={currentConvo} />
         </Pane>
       </Box>
-      <Footer
-        status={status}
-        inbox={currentInbox}
-        convo={currentConvo}
-        serverURL={serverURL}
-      />
+      <Footer status={status} inbox={currentInbox} convo={currentConvo} />
     </Box>
   );
 }

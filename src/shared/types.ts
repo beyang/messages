@@ -7,11 +7,10 @@ export interface Author {
   displayName?: string;
 }
 
-export const authorSchema: z.ZodType<Author> = z
-  .object({
-    username: z.string(),
-    displayName: z.string().optional(),
-  });
+export const authorSchema: z.ZodType<Author> = z.object({
+  username: z.string(),
+  displayName: z.string().optional(),
+});
 
 type _authorSatisfiesAuthorSchema = AssertTrue<
   Author extends z.input<typeof authorSchema> ? true : false
