@@ -232,7 +232,7 @@ function renderFooter(): void {
   footerBox.setContent(
     [
       escapeTags(state.status),
-      '{bold}Keys{/bold}: ↑/↓ move · tab switch pane · R refresh · f fetch · c clear inbox · p add provider · q quit',
+      '{bold}Keys{/bold}: ↑/↓ move · tab switch pane · R refresh · f fetch · c clear inbox · q quit',
       escapeTags(`${providerLabel} · ${selectedConvoLabel}`),
     ].join('\n'),
   );
@@ -367,7 +367,7 @@ screen.key(['f'], () => {
   }
 
   if (inbox.providers.length === 0) {
-    setStatus('No providers configured for this inbox. Press "p" to add one.');
+    setStatus('No providers configured for this inbox.');
     renderAll();
     return;
   }
@@ -418,74 +418,6 @@ screen.key(['c'], () => {
       renderAll();
     }
   })();
-});
-
-screen.key(['p'], () => {
-  const inbox = currentInbox();
-  if (!inbox) {
-    setStatus('No inbox selected.');
-    renderAll();
-    return;
-  }
-
-  const prompt = blessed.prompt({
-    parent: screen,
-    top: 'center',
-    left: 'center',
-    width: '50%',
-    height: 'shrink',
-    border: 'line',
-    label: ' Add Provider ',
-    style: { border: { fg: 'cyan' } },
-  });
-
-  prompt.input('Provider ID:', '', (_err, providerId) => {
-    if (!providerId || providerId.trim() === '') {
-      prompt.destroy();
-      renderAll();
-      return;
-    }
-
-    const typePrompt = blessed.prompt({
-      parent: screen,
-      top: 'center',
-      left: 'center',
-      width: '50%',
-      height: 'shrink',
-      border: 'line',
-      label: ' Provider Type ',
-      style: { border: { fg: 'cyan' } },
-    });
-
-    typePrompt.input(
-      'Provider type (e.g. dummy):',
-      'dummy',
-      (_err2, providerType) => {
-        typePrompt.destroy();
-        if (!providerType || providerType.trim() === '') {
-          renderAll();
-          return;
-        }
-
-        void (async () => {
-          try {
-            await api.createProvider(
-              inbox.id,
-              providerId.trim(),
-              providerType.trim(),
-            );
-            setStatus(`Provider "${providerId.trim()}" added.`);
-            await refreshData(`Provider "${providerId.trim()}" added.`);
-          } catch (error) {
-            const detail =
-              error instanceof Error ? error.message : String(error);
-            setStatus(`Failed to add provider: ${detail}`);
-            renderAll();
-          }
-        })();
-      },
-    );
-  });
 });
 
 inboxList.on('select', (_item, index) => {
