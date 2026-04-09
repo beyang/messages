@@ -3,6 +3,7 @@ import type React from 'react';
 import { useCallback, useEffect, useState } from 'react';
 import type { Convo, Inbox, Message } from '../shared/types.js';
 import { MessagesApi } from './api.js';
+import { MrkdwnText } from './mrkdwn.js';
 
 const serverURL = process.env.MESSAGES_SERVER_URL ?? 'http://localhost:3000';
 const api = new MessagesApi(serverURL);
@@ -26,7 +27,7 @@ function MessagePreview({ message }: { message: Message }) {
         {message.subject && <Text bold>{message.subject}</Text>}
       </Text>
       <Text wrap="truncate" dimColor>
-        {message.content}
+        <MrkdwnText content={message.content} />
       </Text>
     </Box>
   );
@@ -122,7 +123,7 @@ function MessageFull({ message }: { message: Message }) {
       <Text dimColor>{message.timestamp ?? ''}</Text>
       <Text dimColor>{message.sourceURL}</Text>
       <Text> </Text>
-      <Text>{message.content}</Text>
+      <MrkdwnText content={message.content} />
     </Box>
   );
 }
