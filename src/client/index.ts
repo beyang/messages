@@ -112,7 +112,10 @@ const footerBox = blessed.box({
 });
 
 function escapeTags(value: string): string {
-  return value.replaceAll('{', '\\{').replaceAll('}', '\\}');
+  return value
+    .replaceAll('{', '\\{')
+    .replaceAll('}', '\\}')
+    .replaceAll('\t', '    ');
 }
 
 function clampIndex(index: number, length: number): number {
@@ -180,9 +183,13 @@ function renderConvos(): void {
   }
 }
 
+/** Tracks the currently rendered convo so we only reset scroll position when the user switches to a different convo, not on every re-render. */
+let lastRenderedConvoSourceURL: string | null = null;
+
 function renderMessages(): void {
   const convo = currentConvo();
   if (!convo) {
+    lastRenderedConvoSourceURL = null;
     messagesBox.setContent(
       '{gray-fg}Select a convo to read messages.{/gray-fg}',
     );
@@ -190,6 +197,7 @@ function renderMessages(): void {
   }
 
   if (convo.messages.length === 0) {
+    lastRenderedConvoSourceURL = convo.sourceURL;
     messagesBox.setContent('{gray-fg}No messages in this convo.{/gray-fg}');
     return;
   }
@@ -201,8 +209,13 @@ function renderMessages(): void {
     )
     .join('\n\n');
 
+  const convoChanged = lastRenderedConvoSourceURL !== convo.sourceURL;
+  lastRenderedConvoSourceURL = convo.sourceURL;
+
   messagesBox.setContent(content);
-  messagesBox.setScrollPerc(100);
+  if (convoChanged) {
+    messagesBox.scrollTo(0);
+  }
 }
 
 function renderFooter(): void {

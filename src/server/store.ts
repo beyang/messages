@@ -1,4 +1,5 @@
 import type Database from 'better-sqlite3';
+import pino from 'pino';
 
 import {
   type Convo,
@@ -9,6 +10,11 @@ import {
 } from '../shared/types';
 import { initializeDatabase } from './db';
 import { DUMMY_DATA } from './dummy-data';
+
+const logger = pino({
+  name: 'store',
+  transport: { target: 'pino-pretty' },
+});
 
 interface InboxRow {
   id: string;
@@ -122,12 +128,14 @@ export function createInbox(id: string): Inbox {
   database
     .prepare('INSERT INTO inbox (id, providers_json) VALUES (?, ?)')
     .run(id, '[]');
+  logger.info({ inboxID: id }, 'created inbox');
   return { id, convos: [], providers: [] };
 }
 
 export function deleteInbox(id: string): boolean {
   const database = initializeDatabase();
   const result = database.prepare('DELETE FROM inbox WHERE id = ?').run(id);
+  logger.info({ inboxID: id, changed: result.changes > 0 }, 'deleted inbox');
   return result.changes > 0;
 }
 
@@ -194,9 +202,11 @@ function setInboxProviders(
   inboxID: string,
   providers: ProviderConfig[],
 ): void {
+  const json = JSON.stringify(providers);
   database
     .prepare('UPDATE inbox SET providers_json = ? WHERE id = ?')
-    .run(JSON.stringify(providers), inboxID);
+    .run(json, inboxID);
+  logger.info({ inboxID, providers: json }, 'updated inbox providers');
 }
 
 export function createProviderConfig(
@@ -303,6 +313,9 @@ export function mergeConvosIntoInbox(
 export function resetAllData(): void {
   const database = initializeDatabase();
 
+  logger.warn(
+    'resetting all data: deleting all rows from inbox, convo, provider_secrets',
+  );
   database.exec(`
     DELETE FROM convo;
     DELETE FROM provider_secrets;

@@ -45,16 +45,62 @@ function decodeBase64Url(data: string): string {
   ).toString('utf-8');
 }
 
-function extractPlainText(part: GmailMessagePart): string {
-  if (part.mimeType === 'text/plain' && part.body?.data) {
+function decodeHtmlEntities(html: string): string {
+  return html
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex: string) =>
+      String.fromCodePoint(Number.parseInt(hex, 16)),
+    )
+    .replace(/&#(\d+);/g, (_, dec: string) =>
+      String.fromCodePoint(Number.parseInt(dec, 10)),
+    );
+}
+
+function htmlToText(html: string): string {
+  return decodeHtmlEntities(
+    html
+      .replace(/<style[\s\S]*?<\/style>/gi, '')
+      .replace(/<script[\s\S]*?<\/script>/gi, '')
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/p>/gi, '\n\n')
+      .replace(/<\/div>/gi, '\n')
+      .replace(/<\/li>/gi, '\n')
+      .replace(/<[^>]+>/g, ''),
+  )
+    .replace(/\r\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function extractByMimeType(part: GmailMessagePart, mimeType: string): string {
+  if (part.mimeType === mimeType && part.body?.data) {
     return decodeBase64Url(part.body.data);
   }
   if (part.parts) {
     for (const child of part.parts) {
-      const text = extractPlainText(child);
+      const text = extractByMimeType(child, mimeType);
       if (text) return text;
     }
   }
+  return '';
+}
+
+function extractMessageContent(part: GmailMessagePart): string {
+  const plainText = extractByMimeType(part, 'text/plain');
+  if (plainText) {
+    return plainText;
+  }
+
+  const html = extractByMimeType(part, 'text/html');
+  if (html) {
+    return htmlToText(html);
+  }
+
   return '';
 }
 
@@ -166,7 +212,7 @@ export class GmailProvider implements Provider<GmailProviderArgs> {
             return {
               id: msg.id,
               sourceURL: `https://mail.google.com/mail/u/0/#inbox/${msg.id}`,
-              content: extractPlainText(msg.payload),
+              content: extractMessageContent(msg.payload),
               ...(subject ? { subject } : {}),
             };
           }),
