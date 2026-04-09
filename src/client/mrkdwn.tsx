@@ -107,7 +107,6 @@ export function MrkdwnText({ content }: { content: string }) {
   return (
     <Text>
       {segments.map((seg, i) => {
-        // biome-ignore lint/suspicious/noArrayIndexKey: segments have no stable IDs
         const key = i;
         switch (seg.type) {
           case 'text':

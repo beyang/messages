@@ -91,6 +91,8 @@ function Pane({
   children: React.ReactNode;
   width: string;
 }) {
+  const headerColor = isFocused ? 'cyan' : 'white';
+
   return (
     <Box
       flexDirection="column"
@@ -98,8 +100,8 @@ function Pane({
       borderStyle="single"
       borderColor={isFocused ? 'cyan' : 'white'}
     >
-      <Box>
-        <Text bold color={isFocused ? 'cyan' : 'white'}>
+      <Box marginTop={-1} paddingX={1}>
+        <Text bold color={headerColor}>
           {' '}
           {label}{' '}
         </Text>
@@ -333,7 +335,7 @@ function App() {
   return (
     <Box flexDirection="column" width="100%" height="100%">
       <Box flexGrow={1}>
-        <Pane label="Inboxes" isFocused={focusPane === 'inboxes'} width="25%">
+        <Pane label="Inboxes" isFocused={focusPane === 'inboxes'} width="20%">
           <SelectableList
             items={inboxItems}
             selectedIndex={selectedInboxIndex}
@@ -349,7 +351,7 @@ function App() {
             isFocused={focusPane === 'convos'}
           />
         </Pane>
-        <Pane label="Messages" isFocused={false} width="45%">
+        <Pane label="Messages" isFocused={false} width="50%">
           <MessageView convo={currentConvo} />
         </Pane>
       </Box>
