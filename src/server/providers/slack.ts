@@ -235,6 +235,7 @@ export class SlackProvider
           id: `slack-${channelID}-${sanitizeSlackTimestamp(ts)}`,
           sourceURL: messageSourceURL(match, channelID, ts),
           providerID: this.id.toString(),
+          hasStar: false,
           content: match.text ?? '',
           ...(username ? { author: { username } } : {}),
         },
@@ -260,7 +261,11 @@ export class SlackProvider
     _identity: SlackProviderIdentity,
     _messageSourceURL: string,
     _starred: boolean,
-  ): Promise<void> {}
+  ): Promise<void> {
+    throw new Error(
+      'Slack does not currently support toggling saved/Later state via API.',
+    );
+  }
 }
 
 export async function exchangeSlackCode(
