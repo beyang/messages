@@ -250,6 +250,13 @@ export class SlackProvider implements Provider<SlackProviderArgs> {
 
     return { convos };
   }
+
+  async setStar(
+    _args: SlackProviderArgs,
+    _secrets: SecretStore,
+    _messageSourceURL: string,
+    _starred: boolean,
+  ): Promise<void> {}
 }
 
 export async function exchangeSlackCode(

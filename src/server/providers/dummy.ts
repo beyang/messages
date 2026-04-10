@@ -41,4 +41,11 @@ export class DummyProvider implements Provider<null> {
       ],
     };
   }
+
+  async setStar(
+    _args: null,
+    _secrets: SecretStore,
+    _messageSourceURL: string,
+    _starred: boolean,
+  ): Promise<void> {}
 }

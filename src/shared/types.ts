@@ -196,6 +196,12 @@ export interface Provider<A extends JsonSerializable = JsonSerializable> {
   type: string;
   id: string;
   fetchConvos(args: A, secrets: SecretStore): Promise<FetchConvosResult>;
+  setStar(
+    args: A,
+    secrets: SecretStore,
+    messageSourceURL: string,
+    starred: boolean,
+  ): Promise<void>;
   authInitURL?(args: A, baseURL: string): string;
   handleAuthCallback?(secret: string, secrets: SecretStore): void;
 }
@@ -206,6 +212,10 @@ export const providerSchema: z.ZodType<Provider> = z.object({
   fetchConvos: z.function({
     input: [jsonSerializableSchema, secretStoreSchema],
     output: z.promise(fetchConvosResultSchema),
+  }),
+  setStar: z.function({
+    input: [jsonSerializableSchema, secretStoreSchema, z.string(), z.boolean()],
+    output: z.promise(z.void()),
   }),
   authInitURL: z
     .function({

@@ -235,6 +235,13 @@ export class GmailProvider implements Provider<GmailProviderArgs> {
 
     return { convos };
   }
+
+  async setStar(
+    _args: GmailProviderArgs,
+    _secrets: SecretStore,
+    _messageSourceURL: string,
+    _starred: boolean,
+  ): Promise<void> {}
 }
 
 interface GmailTokenExchangeResult {
