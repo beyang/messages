@@ -262,14 +262,25 @@ export function mergeMessages(
       continue;
     }
 
-    if (msg.providerID) {
-      const existingMessage = merged[existingIndex];
-      if (existingMessage.providerID !== msg.providerID) {
-        merged[existingIndex] = {
-          ...existingMessage,
-          providerID: msg.providerID,
-        };
-      }
+    const existingMessage = merged[existingIndex];
+    const updates: Partial<Message> = {};
+
+    if (existingMessage.providerID !== msg.providerID) {
+      updates.providerID = msg.providerID;
+    }
+
+    if (
+      typeof msg.hasStar === 'boolean' &&
+      existingMessage.hasStar !== msg.hasStar
+    ) {
+      updates.hasStar = msg.hasStar;
+    }
+
+    if (Object.keys(updates).length > 0) {
+      merged[existingIndex] = {
+        ...existingMessage,
+        ...updates,
+      };
     }
   }
 

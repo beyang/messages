@@ -23,6 +23,7 @@ export interface Message {
   id: string;
   sourceURL: string;
   providerID: string;
+  hasStar?: boolean;
   content: string;
   subject?: string;
   author?: Author;
@@ -34,6 +35,7 @@ export const messageSchema: z.ZodType<Message> = z
     id: z.string(),
     sourceURL: z.string(),
     providerID: z.unknown().optional(),
+    hasStar: z.unknown().optional(),
     content: z.string(),
     subject: z.unknown().optional(),
     author: authorSchema.optional(),
@@ -51,6 +53,9 @@ export const messageSchema: z.ZodType<Message> = z
       providerID,
       content: entry.content,
     };
+    if (typeof entry.hasStar === 'boolean') {
+      message.hasStar = entry.hasStar;
+    }
     if (typeof entry.subject === 'string') {
       message.subject = entry.subject;
     }
