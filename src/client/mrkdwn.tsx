@@ -70,6 +70,12 @@ export function parseMrkdwn(input: string): Segment[] {
   return segments;
 }
 
+export function mrkdwnToPlainText(input: string): string {
+  return parseMrkdwn(input)
+    .map((segment) => segment.text)
+    .join('');
+}
+
 /** Second pass: split plain text on inline formatting tokens. */
 function pushInlineSegments(segments: Segment[], text: string): void {
   // Match *bold*, _italic_, ~strike~, `code`

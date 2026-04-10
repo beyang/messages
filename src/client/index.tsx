@@ -1,9 +1,9 @@
 import { Box, render, Text, useApp, useInput, useStdout } from 'ink';
 import type React from 'react';
 import { useCallback, useEffect, useState } from 'react';
-import type { Convo, Inbox, Message } from '../shared/types.js';
+import type { Convo, Inbox } from '../shared/types.js';
 import { MessagesApi } from './api.js';
-import { MrkdwnText } from './mrkdwn.js';
+import { buildConvoMessageLines, MessagesView } from './messages-view.js';
 import { sanitizeForTerminalText } from './terminal-text.js';
 
 const serverURL = process.env.MESSAGES_SERVER_URL ?? 'http://localhost:3000';
@@ -52,47 +52,6 @@ function getVisibleWindowStart(
   const desiredStart = Math.max(0, selectedIndex - visibleCount + 1);
 
   return Math.min(maxStart, desiredStart);
-}
-
-function estimateWrappedLineCount(text: string, width: number): number {
-  const safeWidth = Math.max(1, width);
-  return sanitizeForTerminalText(text)
-    .split('\n')
-    .reduce((total, line) => {
-      const charCount = [...line].length;
-      return total + Math.max(1, Math.ceil(charCount / safeWidth));
-    }, 0);
-}
-
-function estimateMessageLineCount(message: Message, width: number): number {
-  const authorLabel = message.author
-    ? message.author.displayName
-      ? `${sanitizeForTerminalText(message.author.displayName)} <${sanitizeForTerminalText(message.author.username)}>`
-      : sanitizeForTerminalText(message.author.username)
-    : 'Unknown';
-
-  const headerLines =
-    estimateWrappedLineCount(`From: ${authorLabel}`, width) +
-    estimateWrappedLineCount(message.timestamp ?? '', width) +
-    estimateWrappedLineCount(message.sourceURL, width) +
-    1;
-  const bodyLines = estimateWrappedLineCount(message.content, width);
-
-  return headerLines + bodyLines + 1;
-}
-
-function estimateConvoLineCount(convo: Convo | null, width: number): number {
-  if (!convo) {
-    return 1;
-  }
-  if (convo.messages.length === 0) {
-    return 1;
-  }
-
-  return convo.messages.reduce(
-    (total, message) => total + estimateMessageLineCount(message, width),
-    0,
-  );
 }
 
 function ConvoPreview({ convo }: { convo: Convo }) {
@@ -234,56 +193,6 @@ function Pane({
   );
 }
 
-function MessageFull({ message }: { message: Message }) {
-  const content = sanitizeForTerminalText(message.content);
-  const timestamp = sanitizeForTerminalText(message.timestamp ?? '');
-  const sourceURL = sanitizeForTerminalText(message.sourceURL);
-  const authorLabel = message.author
-    ? message.author.displayName
-      ? `${sanitizeForTerminalText(message.author.displayName)} <${sanitizeForTerminalText(message.author.username)}>`
-      : sanitizeForTerminalText(message.author.username)
-    : 'Unknown';
-  return (
-    <Box flexDirection="column" marginBottom={1}>
-      <Text bold>From: {authorLabel}</Text>
-      <Text dimColor>{timestamp}</Text>
-      <Text dimColor>{sourceURL}</Text>
-      <Text> </Text>
-      <MrkdwnText content={content} />
-    </Box>
-  );
-}
-
-function MessageView({
-  convo,
-  height,
-  scrollOffset,
-}: {
-  convo: Convo | null;
-  height: number;
-  scrollOffset: number;
-}) {
-  return (
-    <Box flexDirection="column" height={height} overflowY="hidden">
-      {!convo ? (
-        <Text dimColor wrap="truncate-end">
-          Select a convo to read messages.
-        </Text>
-      ) : convo.messages.length === 0 ? (
-        <Text dimColor wrap="truncate-end">
-          No messages in this convo.
-        </Text>
-      ) : (
-        <Box flexDirection="column" marginTop={-scrollOffset}>
-          {convo.messages.map((message) => (
-            <MessageFull key={message.id} message={message} />
-          ))}
-        </Box>
-      )}
-    </Box>
-  );
-}
-
 function Footer({
   status,
   inbox,
@@ -351,10 +260,13 @@ function App() {
     20,
     Math.floor(terminalCols * 0.5) - 6,
   );
+  const currentConvoLines = buildConvoMessageLines(
+    currentConvo,
+    messagePaneContentWidth,
+  );
   const maxMessageScrollOffset = Math.max(
     0,
-    estimateConvoLineCount(currentConvo, messagePaneContentWidth) -
-      paneBodyHeight,
+    currentConvoLines.length - paneBodyHeight,
   );
 
   useEffect(() => {
@@ -564,8 +476,9 @@ function App() {
           width="50%"
           height={mainHeight}
         >
-          <MessageView
+          <MessagesView
             convo={currentConvo}
+            lines={currentConvoLines}
             height={paneBodyHeight}
             scrollOffset={messageScrollOffset}
           />
