@@ -10,7 +10,7 @@ import type {
 import { getGmailConfig } from '../gmail-config';
 
 const GMAIL_REDIRECT_PATH = '/api/oauth/gmail/callback';
-const GMAIL_SCOPES = 'https://www.googleapis.com/auth/gmail.readonly';
+const GMAIL_SCOPES = 'https://www.googleapis.com/auth/gmail.modify';
 
 interface GmailTokenResponse {
   access_token: string;
@@ -31,6 +31,7 @@ interface GmailMessagePart {
 interface GmailMessageResponse {
   id: string;
   threadId: string;
+  labelIds?: string[];
   payload: GmailMessagePart;
 }
 
@@ -117,6 +118,32 @@ function gmailRefreshTokenKey(providerId: string): string {
   return `gmail:${providerId}:refresh_token`;
 }
 
+function parseMessageIDFromSourceURL(sourceURL: string): string {
+  try {
+    const url = new URL(sourceURL);
+    const hash = url.hash.startsWith('#') ? url.hash.slice(1) : url.hash;
+    const hashParts = hash.split('/').filter((part) => part.length > 0);
+    const hashID = hashParts.at(-1);
+    if (hashID) {
+      return decodeURIComponent(hashID);
+    }
+  } catch {
+    // Fall back to a best-effort parse below.
+  }
+
+  const pathID = sourceURL
+    .split('/')
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0)
+    .at(-1);
+
+  if (pathID) {
+    return decodeURIComponent(pathID);
+  }
+
+  throw new Error(`Invalid Gmail message source URL: ${sourceURL}`);
+}
+
 export class GmailProvider implements Provider<GmailProviderArgs> {
   type: string;
   id: string;
@@ -181,6 +208,29 @@ export class GmailProvider implements Provider<GmailProviderArgs> {
     return res.json() as Promise<T>;
   }
 
+  private async gmailPost(
+    path: string,
+    accessToken: string,
+    body: unknown,
+  ): Promise<void> {
+    const res = await fetch(
+      `https://gmail.googleapis.com/gmail/v1/users/me/${path}`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      },
+    );
+    if (!res.ok) {
+      throw new Error(
+        `Gmail API error (${path}): ${res.status} ${await res.text()}`,
+      );
+    }
+  }
+
   async fetchConvos(
     args: GmailProviderArgs,
     secrets: SecretStore,
@@ -225,6 +275,7 @@ export class GmailProvider implements Provider<GmailProviderArgs> {
               id: msg.id,
               sourceURL: `https://mail.google.com/mail/u/0/#inbox/${msg.id}`,
               providerID: this.id,
+              hasStar: msg.labelIds?.includes('STARRED') ?? false,
               content: extractMessageContent(msg.payload),
               ...(subject ? { subject } : {}),
               ...(from ? { author: parseFromHeader(from) } : {}),
@@ -239,10 +290,29 @@ export class GmailProvider implements Provider<GmailProviderArgs> {
 
   async setStar(
     _args: GmailProviderArgs,
-    _secrets: SecretStore,
-    _messageSourceURL: string,
-    _starred: boolean,
-  ): Promise<void> {}
+    secrets: SecretStore,
+    messageSourceURL: string,
+    starred: boolean,
+  ): Promise<void> {
+    const refreshToken = secrets.get(gmailRefreshTokenKey(this.id));
+    if (!refreshToken) {
+      throw new Error(
+        `Missing Gmail refresh token for provider "${this.id}". Re-authorize this provider.`,
+      );
+    }
+
+    const messageID = parseMessageIDFromSourceURL(messageSourceURL);
+    const accessToken = await this.getAccessToken(refreshToken);
+
+    await this.gmailPost(
+      `messages/${encodeURIComponent(messageID)}/modify`,
+      accessToken,
+      {
+        addLabelIds: starred ? ['STARRED'] : [],
+        removeLabelIds: starred ? [] : ['STARRED'],
+      },
+    );
+  }
 }
 
 interface GmailTokenExchangeResult {
