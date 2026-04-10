@@ -1,3 +1,4 @@
+import { execFile } from 'node:child_process';
 import { Box, render, Text, useApp, useInput, useStdout } from 'ink';
 import type React from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -17,6 +18,33 @@ const FALLBACK_TERMINAL_COLS = 80;
 const FOOTER_HEIGHT = 5;
 const PANE_CHROME_HEIGHT = 3;
 const MESSAGE_LINE_PREFIX_WIDTH = 2;
+
+function openSourceURL(sourceURL: string): Promise<void> {
+  let command: string;
+  let args: string[];
+
+  if (process.platform === 'darwin') {
+    command = 'open';
+    args = [sourceURL];
+  } else if (process.platform === 'win32') {
+    command = 'cmd';
+    args = ['/c', 'start', '', sourceURL];
+  } else {
+    command = 'xdg-open';
+    args = [sourceURL];
+  }
+
+  return new Promise((resolve, reject) => {
+    execFile(command, args, (error) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+
+      resolve();
+    });
+  });
+}
 
 function clamp(index: number, length: number): number {
   if (length <= 0) return 0;
@@ -240,15 +268,30 @@ function Footer({
   inbox,
   convo,
   message,
+  canOpenSourceURL,
   height,
 }: {
   status: string;
   inbox: Inbox | null;
   convo: Convo | null;
   message: Message | null;
+  canOpenSourceURL: boolean;
   height: number;
 }) {
   const safeStatus = sanitizeForTerminalText(status);
+  const keyHints = [
+    '↑/↓ move',
+    'tab switch pane',
+    '←/→ jump pane',
+    'R refresh',
+    'f fetch',
+    'c clear inbox',
+    's toggle star',
+  ];
+  if (canOpenSourceURL) {
+    keyHints.push('o open source');
+  }
+  keyHints.push('q quit');
   const inboxLabel = inbox
     ? `Selected inbox: ${sanitizeForTerminalText(inbox.id)}`
     : 'Selected inbox: (none)';
@@ -271,8 +314,7 @@ function Footer({
       <Text wrap="truncate-end">{safeStatus}</Text>
       <Text wrap="truncate-end">
         <Text bold>Keys: </Text>
-        ↑/↓ move · tab switch pane · ←/→ jump pane · R refresh · f fetch · c
-        clear inbox · s toggle star · q quit
+        {keyHints.join(' · ')}
       </Text>
       <Text wrap="truncate-end">
         {inboxLabel} · {convoLabel} · {messageLabel}
@@ -316,6 +358,13 @@ function App() {
   const messageCount = currentConvoLayout.messages.length;
   const currentMessage =
     currentConvoLayout.messages[selectedMessageIndex] ?? null;
+  const latestConvoMessage =
+    currentConvo?.messages[currentConvo.messages.length - 1] ?? null;
+  const openSourceTargetMessage =
+    focusPane === 'convos'
+      ? latestConvoMessage
+      : (currentMessage ?? latestConvoMessage);
+  const canOpenSourceURL = !!openSourceTargetMessage;
   const maxMessageScrollOffset = Math.max(
     0,
     currentConvoLines.length - paneBodyHeight,
@@ -526,6 +575,28 @@ function App() {
       })();
       return;
     }
+
+    if (input === 'o') {
+      if (!openSourceTargetMessage) {
+        return;
+      }
+
+      setStatus(
+        `Opening source URL for message "${openSourceTargetMessage.id}"...`,
+      );
+      void (async () => {
+        try {
+          await openSourceURL(openSourceTargetMessage.sourceURL);
+          setStatus(
+            `Opened source URL for message "${openSourceTargetMessage.id}".`,
+          );
+        } catch (error) {
+          const detail = error instanceof Error ? error.message : String(error);
+          setStatus(`Open source failed: ${detail}`);
+        }
+      })();
+      return;
+    }
   });
 
   return (
@@ -588,6 +659,7 @@ function App() {
         inbox={currentInbox}
         convo={currentConvo}
         message={currentMessage}
+        canOpenSourceURL={canOpenSourceURL}
         height={footerHeight}
       />
     </Box>

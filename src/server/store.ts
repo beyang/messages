@@ -428,6 +428,10 @@ export function mergeMessages(
     const existingMessage = merged[existingIndex];
     const updates: Partial<Message> = {};
 
+    if (existingMessage.sourceURL !== msg.sourceURL) {
+      updates.sourceURL = msg.sourceURL;
+    }
+
     if (existingMessage.providerID !== msg.providerID) {
       updates.providerID = msg.providerID;
     }

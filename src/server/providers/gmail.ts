@@ -238,7 +238,7 @@ export class GmailProvider
   }
 
   async fetchConvos(
-    _identity: GmailProviderIdentity,
+    identity: GmailProviderIdentity,
     query: GmailProviderQuery,
   ): Promise<FetchConvosResult> {
     const refreshToken = getProviderSecretsValue(this.id).trim();
@@ -255,6 +255,13 @@ export class GmailProvider
     if (!searchQuery) {
       throw new Error('Gmail provider query.searchQuery is required.');
     }
+
+    const identityEmail =
+      typeof identity.email === 'string' ? identity.email.trim() : '';
+    const gmailInboxURLPrefix =
+      identityEmail.length > 0
+        ? `https://mail.google.com/mail/?authuser=${encodeURIComponent(identityEmail)}#inbox/`
+        : 'https://mail.google.com/mail/#inbox/';
 
     const accessToken = await this.getAccessToken(refreshToken);
 
@@ -274,7 +281,7 @@ export class GmailProvider
         );
         return {
           id: `gmail-${threadId}`,
-          sourceURL: `https://mail.google.com/mail/u/0/#inbox/${threadId}`,
+          sourceURL: `${gmailInboxURLPrefix}${threadId}`,
           messages: thread.messages.map((msg) => {
             const subject = msg.payload.headers?.find(
               (h) => h.name.toLowerCase() === 'subject',
@@ -284,7 +291,7 @@ export class GmailProvider
             )?.value;
             return {
               id: msg.id,
-              sourceURL: `https://mail.google.com/mail/u/0/#inbox/${msg.id}`,
+              sourceURL: `${gmailInboxURLPrefix}${msg.id}`,
               providerID: this.id.toString(),
               hasStar: msg.labelIds?.includes('STARRED') ?? false,
               content: extractMessageContent(msg.payload),
