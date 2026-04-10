@@ -1,8 +1,8 @@
 import type {
   Convo,
   Inbox,
+  InboxProviderConfig,
   JsonSerializable,
-  ProviderConfig,
 } from '../shared/types';
 
 export class MessagesApi {
@@ -17,8 +17,8 @@ export class MessagesApi {
     id: string,
     type: string,
     args: JsonSerializable = null,
-  ): Promise<ProviderConfig> {
-    return this.request<ProviderConfig>(
+  ): Promise<InboxProviderConfig> {
+    return this.request<InboxProviderConfig>(
       `/api/inboxes/${encodeURIComponent(inboxID)}/providers`,
       { method: 'POST', body: JSON.stringify({ id, type, args }) },
     );
@@ -28,8 +28,8 @@ export class MessagesApi {
     inboxID: string,
     id: string,
     updates: { type?: string; args?: JsonSerializable },
-  ): Promise<ProviderConfig> {
-    return this.request<ProviderConfig>(
+  ): Promise<InboxProviderConfig> {
+    return this.request<InboxProviderConfig>(
       `/api/inboxes/${encodeURIComponent(inboxID)}/providers`,
       { method: 'PUT', body: JSON.stringify({ id, ...updates }) },
     );

@@ -4,9 +4,9 @@ import pino from 'pino';
 import {
   type Convo,
   type Inbox,
+  type InboxProviderConfig,
   type Message,
   messageSchema,
-  type ProviderConfig,
   type ProviderConfig2,
   type ProviderIdentity,
 } from '../shared/types';
@@ -111,7 +111,7 @@ function getConvoRowsByInbox(
 }
 
 function providerArgsToIdentity(
-  args: ProviderConfig['args'],
+  args: InboxProviderConfig['args'],
 ): ProviderIdentity {
   if (!args || typeof args !== 'object' || Array.isArray(args)) {
     return {};
@@ -122,7 +122,7 @@ function providerArgsToIdentity(
 
 function splitProviderArgs(
   type: string,
-  args: ProviderConfig['args'],
+  args: InboxProviderConfig['args'],
 ): { identity: ProviderIdentity; query: ProviderIdentity } {
   const argsObject = providerArgsToIdentity(args);
 
@@ -151,7 +151,7 @@ function splitProviderArgs(
 function combineProviderIdentityAndQuery(
   identity: ProviderIdentity,
   query: ProviderIdentity,
-): ProviderConfig['args'] {
+): InboxProviderConfig['args'] {
   const merged = { ...identity, ...query };
   return Object.keys(merged).length > 0 ? merged : null;
 }
@@ -159,7 +159,7 @@ function combineProviderIdentityAndQuery(
 function getInboxProviderConfigsInternal(
   database: Database.Database,
   inboxID: string,
-): ProviderConfig[] {
+): InboxProviderConfig[] {
   const rows = database
     .prepare(
       `
@@ -279,7 +279,7 @@ export function getConvo(sourceURL: string): Convo | null {
   return convoFromRow(convoRow);
 }
 
-export function getInboxProviders(inboxID: string): ProviderConfig[] {
+export function getInboxProviders(inboxID: string): InboxProviderConfig[] {
   const database = initializeDatabase();
   return getInboxProviderConfigsInternal(database, inboxID);
 }
@@ -351,8 +351,8 @@ function linkProviderToInbox(
 
 export function createProviderConfig(
   inboxID: string,
-  config: ProviderConfig,
-): ProviderConfig {
+  config: InboxProviderConfig,
+): InboxProviderConfig {
   const database = initializeDatabase();
   const split = splitProviderArgs(config.type, config.args);
   const existingProviderID = parseProviderID(config.id);
@@ -512,8 +512,8 @@ export function getProviderConfig2(id: number): ProviderConfig2 | null {
 export function updateProviderConfig(
   inboxID: string,
   id: string,
-  updates: { type?: string; args?: ProviderConfig['args'] },
-): ProviderConfig | null {
+  updates: { type?: string; args?: InboxProviderConfig['args'] },
+): InboxProviderConfig | null {
   const database = initializeDatabase();
   const providerID = parseProviderID(id);
   if (!providerID) {

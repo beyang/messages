@@ -1,7 +1,7 @@
 import type { RequestHandler } from '@sveltejs/kit';
 import { redirect } from '@sveltejs/kit';
 import { updateProviderSecretsValue } from '../../../../../server/providers/secrets';
-import { exchangeSlackCode } from '../../../../../server/providers/slack';
+import { exchangeSlackCode } from '../../../../../server/providers/slack2';
 import { getProviderConfig2 } from '../../../../../server/store';
 
 export const GET: RequestHandler = async ({ url }) => {

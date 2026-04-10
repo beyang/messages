@@ -37,6 +37,25 @@ interface SlackSearchResponse {
   };
 }
 
+interface SlackOAuthSuccessResponse {
+  ok: true;
+  access_token?: string;
+  authed_user?: {
+    access_token?: string;
+  };
+}
+
+interface SlackOAuthErrorResponse {
+  ok: false;
+  error: string;
+}
+
+type SlackOAuthResponse = SlackOAuthSuccessResponse | SlackOAuthErrorResponse;
+
+interface SlackTokenExchangeResult {
+  accessToken: string;
+}
+
 interface GroupedConvo {
   id: string;
   sourceURL: string;
@@ -242,4 +261,40 @@ export class SlackProvider2
     _messageSourceURL: string,
     _starred: boolean,
   ): Promise<void> {}
+}
+
+export async function exchangeSlackCode(
+  code: string,
+  redirectUri: string,
+): Promise<SlackTokenExchangeResult> {
+  const creds = getSlackConfig();
+  const res = await fetch('https://slack.com/api/oauth.v2.access', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams({
+      client_id: creds.clientId,
+      client_secret: creds.clientSecret,
+      code,
+      redirect_uri: redirectUri,
+    }),
+  });
+  if (!res.ok) {
+    throw new Error(
+      `Failed to exchange Slack auth code: ${res.status} ${await res.text()}`,
+    );
+  }
+
+  const data = (await res.json()) as SlackOAuthResponse;
+  if (!data.ok) {
+    throw new Error(`Slack OAuth token exchange failed: ${data.error}`);
+  }
+
+  const accessToken = data.authed_user?.access_token ?? data.access_token;
+  if (!accessToken) {
+    throw new Error('No user access token returned from Slack OAuth exchange.');
+  }
+
+  return { accessToken };
 }

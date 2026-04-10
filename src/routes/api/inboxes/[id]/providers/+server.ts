@@ -6,7 +6,7 @@ import {
   getInbox,
   updateProviderConfig,
 } from '../../../../../server/store';
-import type { ProviderConfig } from '../../../../../shared/types';
+import type { InboxProviderConfig } from '../../../../../shared/types';
 
 export const POST: RequestHandler = async ({ params, request }) => {
   const inbox = getInbox(params.id);
@@ -31,7 +31,7 @@ export const POST: RequestHandler = async ({ params, request }) => {
   const config = createProviderConfig(params.id, {
     id: id.trim(),
     type: type.trim(),
-    args: (args ?? null) as ProviderConfig['args'],
+    args: (args ?? null) as InboxProviderConfig['args'],
   });
 
   return json(config, { status: 201 });
@@ -56,7 +56,7 @@ export const PUT: RequestHandler = async ({ params, request }) => {
 
   const updated = updateProviderConfig(params.id, id.trim(), {
     type: type?.trim(),
-    args: args as ProviderConfig['args'] | undefined,
+    args: args as InboxProviderConfig['args'] | undefined,
   });
 
   if (!updated) {

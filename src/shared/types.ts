@@ -112,23 +112,30 @@ type _jsonSerializableSchemaProducesJsonSerializable = AssertTrue<
     : false
 >;
 
-export interface ProviderConfig<A extends JsonSerializable = JsonSerializable> {
+export interface InboxProviderConfig<
+  A extends JsonSerializable = JsonSerializable,
+> {
   id: string;
   type: string;
   args: A;
 }
 
-export const providerConfigSchema: z.ZodType<ProviderConfig> = z.object({
-  id: z.string(),
-  type: z.string(),
-  args: jsonSerializableSchema,
-});
+export const inboxProviderConfigSchema: z.ZodType<InboxProviderConfig> =
+  z.object({
+    id: z.string(),
+    type: z.string(),
+    args: jsonSerializableSchema,
+  });
 
-type _providerConfigSatisfiesProviderConfigSchema = AssertTrue<
-  ProviderConfig extends z.input<typeof providerConfigSchema> ? true : false
+type _inboxProviderConfigSatisfiesInboxProviderConfigSchema = AssertTrue<
+  InboxProviderConfig extends z.input<typeof inboxProviderConfigSchema>
+    ? true
+    : false
 >;
-type _providerConfigSchemaProducesProviderConfig = AssertTrue<
-  z.output<typeof providerConfigSchema> extends ProviderConfig ? true : false
+type _inboxProviderConfigSchemaProducesInboxProviderConfig = AssertTrue<
+  z.output<typeof inboxProviderConfigSchema> extends InboxProviderConfig
+    ? true
+    : false
 >;
 
 export type ProviderIdentity = { [key: string]: JsonSerializable };
@@ -173,13 +180,13 @@ type _providerConfig2SchemaProducesProviderConfig2 = AssertTrue<
 export interface Inbox {
   id: string;
   convos: Convo[];
-  providers: ProviderConfig[];
+  providers: InboxProviderConfig[];
 }
 
 export const inboxSchema: z.ZodType<Inbox> = z.object({
   id: z.string(),
   convos: z.array(convoSchema),
-  providers: z.array(providerConfigSchema),
+  providers: z.array(inboxProviderConfigSchema),
 });
 
 type _inboxSatisfiesInboxSchema = AssertTrue<
@@ -244,20 +251,6 @@ type _secretStoreSchemaProducesSecretStore = AssertTrue<
   z.output<typeof secretStoreSchema> extends SecretStore ? true : false
 >;
 
-export interface Provider<A extends JsonSerializable = JsonSerializable> {
-  type: string;
-  id: string;
-  fetchConvos(args: A, secrets: SecretStore): Promise<FetchConvosResult>;
-  setStar(
-    args: A,
-    secrets: SecretStore,
-    messageSourceURL: string,
-    starred: boolean,
-  ): Promise<void>;
-  authInitURL?(args: A, baseURL: string): string;
-  handleAuthCallback?(secret: string, secrets: SecretStore): void;
-}
-
 export interface Provider2<
   I extends JsonSerializable,
   Q extends JsonSerializable,
@@ -273,35 +266,3 @@ export interface Provider2<
   authInitURL?(identity: I, baseURL: string): string;
   handleAuthCallback?(secret: string): void;
 }
-
-export const providerSchema: z.ZodType<Provider> = z.object({
-  type: z.string(),
-  id: z.string(),
-  fetchConvos: z.function({
-    input: [jsonSerializableSchema, secretStoreSchema],
-    output: z.promise(fetchConvosResultSchema),
-  }),
-  setStar: z.function({
-    input: [jsonSerializableSchema, secretStoreSchema, z.string(), z.boolean()],
-    output: z.promise(z.void()),
-  }),
-  authInitURL: z
-    .function({
-      input: [jsonSerializableSchema, z.string()],
-      output: z.string(),
-    })
-    .optional(),
-  handleAuthCallback: z
-    .function({
-      input: [z.string(), secretStoreSchema],
-      output: z.void(),
-    })
-    .optional(),
-});
-
-type _providerSatisfiesProviderSchema = AssertTrue<
-  Provider extends z.input<typeof providerSchema> ? true : false
->;
-type _providerSchemaProducesProvider = AssertTrue<
-  z.output<typeof providerSchema> extends Provider ? true : false
->;
