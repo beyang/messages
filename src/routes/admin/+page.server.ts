@@ -37,7 +37,6 @@ const ALLOWED_TABLES = new Set([
   'inbox',
   'inbox_providers',
   'convo',
-  'provider_secrets',
   'providers',
 ]);
 
@@ -91,7 +90,6 @@ export const load: PageServerLoad = ({ url }) => {
     'inbox',
     'inbox_providers',
     'convo',
-    'provider_secrets',
     'providers',
   ] as const;
   const data: Record<string, TablePage> = {};

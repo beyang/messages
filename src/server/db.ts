@@ -365,6 +365,10 @@ const MIGRATIONS: ((db: Database.Database) => void)[] = [
       ON inbox_providers (provider_id);
     `);
   },
+  // Migration 7: drop legacy provider_secrets table after moving secrets into providers.secrets_value
+  (db) => {
+    db.exec('DROP TABLE IF EXISTS provider_secrets;');
+  },
 ];
 
 function runMigrations(db: Database.Database): void {

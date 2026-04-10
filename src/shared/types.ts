@@ -195,34 +195,6 @@ type _fetchConvosResultSchemaProducesFetchConvosResult = AssertTrue<
     : false
 >;
 
-export interface SecretStore {
-  get(key: string): string | null;
-  set(key: string, value: string): void;
-  delete(key: string): void;
-}
-
-export const secretStoreSchema: z.ZodType<SecretStore> = z.object({
-  get: z.function({
-    input: [z.string()],
-    output: z.string().nullable(),
-  }),
-  set: z.function({
-    input: [z.string(), z.string()],
-    output: z.void(),
-  }),
-  delete: z.function({
-    input: [z.string()],
-    output: z.void(),
-  }),
-});
-
-type _secretStoreSatisfiesSecretStoreSchema = AssertTrue<
-  SecretStore extends z.input<typeof secretStoreSchema> ? true : false
->;
-type _secretStoreSchemaProducesSecretStore = AssertTrue<
-  z.output<typeof secretStoreSchema> extends SecretStore ? true : false
->;
-
 export interface Provider2<
   I extends JsonSerializable,
   Q extends JsonSerializable,

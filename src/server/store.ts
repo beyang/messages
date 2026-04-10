@@ -440,13 +440,12 @@ export function resetAllData(): void {
   const database = initializeDatabase();
 
   logger.warn(
-    'resetting all data: deleting all rows from inbox, convo, providers, inbox_providers, provider_secrets',
+    'resetting all data: deleting all rows from inbox, convo, providers, inbox_providers',
   );
   database.exec(`
     DELETE FROM convo;
     DELETE FROM inbox_providers;
     DELETE FROM providers;
-    DELETE FROM provider_secrets;
     DELETE FROM inbox;
   `);
 }
