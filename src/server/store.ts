@@ -276,7 +276,11 @@ export function mergeConvosIntoInbox(
      VALUES (@id, @sourceURL, @inboxID, @messagesJSON)`,
   );
   const updateConvo = database.prepare(
-    `UPDATE convo SET source_url = @sourceURL, messages_json = @messagesJSON WHERE id = @id`,
+    `UPDATE convo
+     SET source_url = @sourceURL,
+         inbox_id = @inboxID,
+         messages_json = @messagesJSON
+     WHERE id = @id`,
   );
 
   database.transaction(() => {
@@ -292,6 +296,7 @@ export function mergeConvosIntoInbox(
         updateConvo.run({
           id: convo.id,
           sourceURL: convo.sourceURL,
+          inboxID,
           messagesJSON: JSON.stringify(merged),
         });
         result.push({ ...convo, messages: merged });
