@@ -1,8 +1,8 @@
 import type { RequestHandler } from '@sveltejs/kit';
 import { redirect } from '@sveltejs/kit';
 import { updateProviderSecretsValue } from '../../../../../server/providers/secrets';
-import { exchangeSlackCode } from '../../../../../server/providers/slack2';
-import { getProviderConfig2 } from '../../../../../server/store';
+import { exchangeSlackCode } from '../../../../../server/providers/slack';
+import { getProviderConfig } from '../../../../../server/store';
 
 export const GET: RequestHandler = async ({ url }) => {
   const code = url.searchParams.get('code');
@@ -34,7 +34,7 @@ export const GET: RequestHandler = async ({ url }) => {
     );
   }
 
-  const providerConfig = getProviderConfig2(providerID);
+  const providerConfig = getProviderConfig(providerID);
 
   if (!providerConfig) {
     redirect(

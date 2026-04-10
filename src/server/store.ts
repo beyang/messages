@@ -6,7 +6,7 @@ import {
   type Inbox,
   type Message,
   messageSchema,
-  type ProviderConfig2,
+  type ProviderConfig,
   type ProviderIdentity,
 } from '../shared/types';
 import { initializeDatabase } from './db';
@@ -28,18 +28,18 @@ interface ConvoRow {
   messagesJSON: string;
 }
 
-interface ProviderConfig2Row {
+interface ProviderConfigRow {
   id: number;
   secretsValue: string;
   type: string;
   identityJSON: string;
 }
 
-interface InboxProviderConfig2Row extends ProviderConfig2Row {
+interface InboxProviderConfigRow extends ProviderConfigRow {
   queryJSON: string;
 }
 
-export type InboxProviderConfig2 = ProviderConfig2 & {
+export type InboxProviderConfig = ProviderConfig & {
   query: ProviderIdentity;
 };
 
@@ -111,7 +111,7 @@ function parseProviderIdentity(identityJSON: string): ProviderIdentity {
   return parsed as ProviderIdentity;
 }
 
-function providerConfig2FromRow(row: ProviderConfig2Row): ProviderConfig2 {
+function providerConfigFromRow(row: ProviderConfigRow): ProviderConfig {
   return {
     id: row.id,
     secretsValue: row.secretsValue,
@@ -186,7 +186,7 @@ export function getConvo(sourceURL: string): Convo | null {
   return convoFromRow(convoRow);
 }
 
-export function getInboxProviders2(inboxID: string): InboxProviderConfig2[] {
+export function getInboxProviders(inboxID: string): InboxProviderConfig[] {
   const database = initializeDatabase();
   const rows = database
     .prepare(
@@ -203,10 +203,10 @@ export function getInboxProviders2(inboxID: string): InboxProviderConfig2[] {
         ORDER BY p.id
       `,
     )
-    .all(inboxID) as InboxProviderConfig2Row[];
+    .all(inboxID) as InboxProviderConfigRow[];
 
   return rows.map((row) => ({
-    ...providerConfig2FromRow(row),
+    ...providerConfigFromRow(row),
     query: parseProviderIdentity(row.queryJSON),
   }));
 }
@@ -275,11 +275,11 @@ export function setInboxProviderAssociations(
   );
 }
 
-export function createProviderConfig2(config: {
+export function createProviderConfig(config: {
   type: string;
   secretsValue: string;
   identity: ProviderIdentity;
-}): ProviderConfig2 {
+}): ProviderConfig {
   const database = initializeDatabase();
   const result = database
     .prepare(
@@ -287,7 +287,7 @@ export function createProviderConfig2(config: {
     )
     .run(config.secretsValue, config.type, JSON.stringify(config.identity));
 
-  const provider: ProviderConfig2 = {
+  const provider: ProviderConfig = {
     id: Number(result.lastInsertRowid),
     secretsValue: config.secretsValue,
     type: config.type,
@@ -301,30 +301,30 @@ export function createProviderConfig2(config: {
   return provider;
 }
 
-export function listProviderConfigs2(): ProviderConfig2[] {
+export function listProviderConfigs(): ProviderConfig[] {
   const database = initializeDatabase();
   const rows = database
     .prepare(
       'SELECT id, secrets_value AS secretsValue, type, identity AS identityJSON FROM providers ORDER BY id',
     )
-    .all() as ProviderConfig2Row[];
+    .all() as ProviderConfigRow[];
 
-  return rows.map(providerConfig2FromRow);
+  return rows.map(providerConfigFromRow);
 }
 
-export function getProviderConfig2(id: number): ProviderConfig2 | null {
+export function getProviderConfig(id: number): ProviderConfig | null {
   const database = initializeDatabase();
   const row = database
     .prepare(
       'SELECT id, secrets_value AS secretsValue, type, identity AS identityJSON FROM providers WHERE id = ?',
     )
-    .get(id) as ProviderConfig2Row | undefined;
+    .get(id) as ProviderConfigRow | undefined;
 
   if (!row) {
     return null;
   }
 
-  return providerConfig2FromRow(row);
+  return providerConfigFromRow(row);
 }
 
 export function mergeMessages(

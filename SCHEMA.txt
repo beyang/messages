@@ -31,11 +31,6 @@ TABLE: inbox_providers
     idx_inbox_providers_inbox_id (inbox_id)
     sqlite_autoindex_inbox_providers_1 UNIQUE (inbox_id, provider_id, query)
 
-TABLE: provider_secrets
-  Columns:
-    key TEXT PRIMARY KEY
-    value TEXT NOT NULL
-
 TABLE: providers
   Columns:
     id INTEGER PRIMARY KEY

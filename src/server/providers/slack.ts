@@ -1,8 +1,8 @@
 import type {
   Convo,
   FetchConvosResult,
-  Provider2,
-  ProviderConfig2,
+  Provider,
+  ProviderConfig,
   ProviderIdentity,
 } from '../../shared/types';
 import { getSlackConfig } from '../slack-config';
@@ -11,9 +11,9 @@ import { getProviderSecretsValue, updateProviderSecretsValue } from './secrets';
 const SLACK_REDIRECT_PATH = '/api/oauth/slack/callback';
 const SLACK_USER_SCOPES = 'search:read';
 
-export interface SlackProvider2Identity extends ProviderIdentity {}
+export interface SlackProviderIdentity extends ProviderIdentity {}
 
-export interface SlackProvider2Query extends ProviderIdentity {
+export interface SlackProviderQuery extends ProviderIdentity {
   searchQuery: string;
 }
 
@@ -94,18 +94,18 @@ function messageSourceURL(
   return match.permalink?.trim() || slackAppRedirectURL(channelID, ts);
 }
 
-export class SlackProvider2
-  implements Provider2<SlackProvider2Identity, SlackProvider2Query>
+export class SlackProvider
+  implements Provider<SlackProviderIdentity, SlackProviderQuery>
 {
   type: string;
   id: number;
 
-  constructor(config: ProviderConfig2<SlackProvider2Identity>) {
+  constructor(config: ProviderConfig<SlackProviderIdentity>) {
     this.type = config.type;
     this.id = config.id;
   }
 
-  authInitURL(_identity: SlackProvider2Identity, baseURL: string): string {
+  authInitURL(_identity: SlackProviderIdentity, baseURL: string): string {
     const creds = getSlackConfig();
     const params = new URLSearchParams({
       client_id: creds.clientId,
@@ -153,8 +153,8 @@ export class SlackProvider2
   }
 
   async fetchConvos(
-    _identity: SlackProvider2Identity,
-    query: SlackProvider2Query,
+    _identity: SlackProviderIdentity,
+    query: SlackProviderQuery,
   ): Promise<FetchConvosResult> {
     const accessToken = getProviderSecretsValue(this.id).trim();
     if (!accessToken) {
@@ -257,7 +257,7 @@ export class SlackProvider2
   }
 
   async setStar(
-    _identity: SlackProvider2Identity,
+    _identity: SlackProviderIdentity,
     _messageSourceURL: string,
     _starred: boolean,
   ): Promise<void> {}

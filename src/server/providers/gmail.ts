@@ -2,8 +2,8 @@ import type {
   Author,
   Convo,
   FetchConvosResult,
-  Provider2,
-  ProviderConfig2,
+  Provider,
+  ProviderConfig,
   ProviderIdentity,
 } from '../../shared/types';
 import { getGmailConfig } from '../gmail-config';
@@ -12,11 +12,11 @@ import { getProviderSecretsValue, updateProviderSecretsValue } from './secrets';
 const GMAIL_REDIRECT_PATH = '/api/oauth/gmail/callback';
 const GMAIL_SCOPES = 'https://www.googleapis.com/auth/gmail.modify';
 
-export interface GmailProvider2Identity extends ProviderIdentity {
+export interface GmailProviderIdentity extends ProviderIdentity {
   email: string;
 }
 
-export interface GmailProvider2Query extends ProviderIdentity {
+export interface GmailProviderQuery extends ProviderIdentity {
   searchQuery: string;
 }
 
@@ -148,18 +148,18 @@ function parseMessageIDFromSourceURL(sourceURL: string): string {
   throw new Error(`Invalid Gmail message source URL: ${sourceURL}`);
 }
 
-export class GmailProvider2
-  implements Provider2<GmailProvider2Identity, GmailProvider2Query>
+export class GmailProvider
+  implements Provider<GmailProviderIdentity, GmailProviderQuery>
 {
   type: string;
   id: number;
 
-  constructor(config: ProviderConfig2<GmailProvider2Identity>) {
+  constructor(config: ProviderConfig<GmailProviderIdentity>) {
     this.type = config.type;
     this.id = config.id;
   }
 
-  authInitURL(identity: GmailProvider2Identity, baseURL: string): string {
+  authInitURL(identity: GmailProviderIdentity, baseURL: string): string {
     const creds = getGmailConfig();
     const params = new URLSearchParams({
       client_id: creds.clientId,
@@ -238,8 +238,8 @@ export class GmailProvider2
   }
 
   async fetchConvos(
-    _identity: GmailProvider2Identity,
-    query: GmailProvider2Query,
+    _identity: GmailProviderIdentity,
+    query: GmailProviderQuery,
   ): Promise<FetchConvosResult> {
     const refreshToken = getProviderSecretsValue(this.id).trim();
     if (!refreshToken) {
@@ -300,7 +300,7 @@ export class GmailProvider2
   }
 
   async setStar(
-    _identity: GmailProvider2Identity,
+    _identity: GmailProviderIdentity,
     messageSourceURL: string,
     starred: boolean,
   ): Promise<void> {

@@ -2,7 +2,7 @@ import type { RequestHandler } from '@sveltejs/kit';
 import { json } from '@sveltejs/kit';
 
 import { getSlackConfig } from '../../../../server/slack-config';
-import { getProviderConfig2 } from '../../../../server/store';
+import { getProviderConfig } from '../../../../server/store';
 
 const SLACK_REDIRECT_PATH = '/api/oauth/slack/callback';
 const SLACK_USER_SCOPES = 'search:read';
@@ -28,7 +28,7 @@ export const GET: RequestHandler = ({ url }) => {
     );
   }
 
-  const providerConfig = getProviderConfig2(providerID);
+  const providerConfig = getProviderConfig(providerID);
 
   if (!providerConfig) {
     return json({ error: 'Provider not found.' }, { status: 404 });

@@ -2,11 +2,11 @@ import type { RequestHandler } from '@sveltejs/kit';
 import { redirect } from '@sveltejs/kit';
 import {
   exchangeGmailCode,
-  GmailProvider2,
-  type GmailProvider2Identity,
+  GmailProvider,
+  type GmailProviderIdentity,
   getGmailProfileEmail,
-} from '../../../../../server/providers/gmail2';
-import { getProviderConfig2 } from '../../../../../server/store';
+} from '../../../../../server/providers/gmail';
+import { getProviderConfig } from '../../../../../server/store';
 export const GET: RequestHandler = async ({ url }) => {
   const code = url.searchParams.get('code');
   const providerIDParam = url.searchParams.get('state');
@@ -37,7 +37,7 @@ export const GET: RequestHandler = async ({ url }) => {
     );
   }
 
-  const providerConfig = getProviderConfig2(providerID);
+  const providerConfig = getProviderConfig(providerID);
 
   if (!providerConfig) {
     redirect(
@@ -73,14 +73,14 @@ export const GET: RequestHandler = async ({ url }) => {
     );
   }
 
-  const identity: GmailProvider2Identity = {
+  const identity: GmailProviderIdentity = {
     ...providerConfig.identity,
     email:
       typeof identityEmail === 'string' && identityEmail.trim() !== ''
         ? identityEmail.trim()
         : profileEmail,
   };
-  const provider = new GmailProvider2({ ...providerConfig, identity });
+  const provider = new GmailProvider({ ...providerConfig, identity });
 
   if (provider.handleAuthCallback) {
     provider.handleAuthCallback(refreshToken);

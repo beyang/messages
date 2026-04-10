@@ -128,27 +128,25 @@ type _providerIdentitySchemaProducesProviderIdentity = AssertTrue<
     : false
 >;
 
-export interface ProviderConfig2<
-  I extends ProviderIdentity = ProviderIdentity,
-> {
+export interface ProviderConfig<I extends ProviderIdentity = ProviderIdentity> {
   id: number;
   secretsValue: string;
   type: string;
   identity: I;
 }
 
-export const providerConfig2Schema: z.ZodType<ProviderConfig2> = z.object({
+export const providerConfigSchema: z.ZodType<ProviderConfig> = z.object({
   id: z.number().int(),
   secretsValue: z.string(),
   type: z.string(),
   identity: providerIdentitySchema,
 });
 
-type _providerConfig2SatisfiesProviderConfig2Schema = AssertTrue<
-  ProviderConfig2 extends z.input<typeof providerConfig2Schema> ? true : false
+type _providerConfigSatisfiesProviderConfigSchema = AssertTrue<
+  ProviderConfig extends z.input<typeof providerConfigSchema> ? true : false
 >;
-type _providerConfig2SchemaProducesProviderConfig2 = AssertTrue<
-  z.output<typeof providerConfig2Schema> extends ProviderConfig2 ? true : false
+type _providerConfigSchemaProducesProviderConfig = AssertTrue<
+  z.output<typeof providerConfigSchema> extends ProviderConfig ? true : false
 >;
 
 export interface Inbox {
@@ -195,7 +193,7 @@ type _fetchConvosResultSchemaProducesFetchConvosResult = AssertTrue<
     : false
 >;
 
-export interface Provider2<
+export interface Provider<
   I extends JsonSerializable,
   Q extends JsonSerializable,
 > {

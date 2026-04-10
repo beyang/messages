@@ -1,16 +1,16 @@
 import type { FetchConvosResult } from '../../shared/types';
-import { fetchConvosFromProvider2 } from '../providers/index2';
-import { getInboxProviders2, mergeConvosIntoInbox } from '../store';
+import { fetchConvosFromProvider } from '../providers';
+import { getInboxProviders, mergeConvosIntoInbox } from '../store';
 
 export async function refreshInbox(
   inboxID: string,
 ): Promise<FetchConvosResult> {
-  const configs = getInboxProviders2(inboxID);
+  const configs = getInboxProviders(inboxID);
   const result: FetchConvosResult = { convos: [] };
 
   for (const config of configs) {
     try {
-      const fetchResult = await fetchConvosFromProvider2(config, config.query);
+      const fetchResult = await fetchConvosFromProvider(config, config.query);
       if (fetchResult.needsAuth) {
         result.needsAuth = fetchResult.needsAuth;
       }

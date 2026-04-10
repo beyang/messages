@@ -2,11 +2,11 @@ import { fail } from '@sveltejs/kit';
 import { initializeDatabase } from '../../server/db';
 import {
   createInbox,
-  createProviderConfig2,
+  createProviderConfig,
   deleteInbox,
-  getInboxProviders2,
+  getInboxProviders,
   listInboxes,
-  listProviderConfigs2,
+  listProviderConfigs,
   setInboxProviderAssociations,
 } from '../../server/store';
 import { providerIdentitySchema } from '../../shared/types';
@@ -86,12 +86,7 @@ function queryTable(
 export const load: PageServerLoad = ({ url }) => {
   const pageSize = 20;
 
-  const tables = [
-    'inbox',
-    'inbox_providers',
-    'convo',
-    'providers',
-  ] as const;
+  const tables = ['inbox', 'inbox_providers', 'convo', 'providers'] as const;
   const data: Record<string, TablePage> = {};
 
   for (const table of tables) {
@@ -101,7 +96,7 @@ export const load: PageServerLoad = ({ url }) => {
 
   const inboxes = listInboxes();
 
-  const authProviders = listProviderConfigs2().map((provider) => ({
+  const authProviders = listProviderConfigs().map((provider) => ({
     id: provider.id,
     type: provider.type,
     identityJSON: JSON.stringify(provider.identity),
@@ -109,7 +104,7 @@ export const load: PageServerLoad = ({ url }) => {
 
   const inboxProviderAssignments = inboxes.map((inbox) => ({
     inboxID: inbox.id,
-    providerIDs: getInboxProviders2(inbox.id).map((provider) => provider.id),
+    providerIDs: getInboxProviders(inbox.id).map((provider) => provider.id),
   }));
 
   const authError = url.searchParams.get('auth_error') ?? null;
@@ -158,7 +153,7 @@ export const actions: Actions = {
       identity.email = email.trim();
     }
 
-    const provider = createProviderConfig2({
+    const provider = createProviderConfig({
       type: trimmedType,
       secretsValue: '',
       identity,

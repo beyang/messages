@@ -1,18 +1,18 @@
 import crypto from 'node:crypto';
 import type {
   FetchConvosResult,
-  Provider2,
-  ProviderConfig2,
+  Provider,
+  ProviderConfig,
   ProviderIdentity,
 } from '../../shared/types';
 
-export class DummyProvider2
-  implements Provider2<ProviderIdentity, ProviderIdentity>
+export class DummyProvider
+  implements Provider<ProviderIdentity, ProviderIdentity>
 {
   type: string;
   id: number;
 
-  constructor(config: ProviderConfig2) {
+  constructor(config: ProviderConfig) {
     this.type = config.type;
     this.id = config.id;
   }

@@ -2,10 +2,10 @@ import type { RequestHandler } from '@sveltejs/kit';
 import { json } from '@sveltejs/kit';
 
 import {
-  GmailProvider2,
-  type GmailProvider2Identity,
-} from '../../../../server/providers/gmail2';
-import { getProviderConfig2 } from '../../../../server/store';
+  GmailProvider,
+  type GmailProviderIdentity,
+} from '../../../../server/providers/gmail';
+import { getProviderConfig } from '../../../../server/store';
 
 export const GET: RequestHandler = ({ url }) => {
   const providerIDParam = url.searchParams.get('provider_id');
@@ -28,7 +28,7 @@ export const GET: RequestHandler = ({ url }) => {
     );
   }
 
-  const providerConfig = getProviderConfig2(providerID);
+  const providerConfig = getProviderConfig(providerID);
 
   if (!providerConfig) {
     return json({ error: 'Provider not found.' }, { status: 404 });
@@ -51,11 +51,11 @@ export const GET: RequestHandler = ({ url }) => {
     );
   }
 
-  const identity: GmailProvider2Identity = {
+  const identity: GmailProviderIdentity = {
     ...providerConfig.identity,
     email: email.trim(),
   };
-  const provider = new GmailProvider2({ ...providerConfig, identity });
+  const provider = new GmailProvider({ ...providerConfig, identity });
 
   const authURL = provider.authInitURL(identity, url.origin);
 
