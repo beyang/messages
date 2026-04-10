@@ -4,7 +4,6 @@ import pino from 'pino';
 import {
   type Convo,
   type Inbox,
-  type InboxProviderConfig,
   type Message,
   messageSchema,
   type ProviderConfig2,
@@ -38,19 +37,6 @@ interface ProviderConfig2Row {
 
 interface InboxProviderConfig2Row extends ProviderConfig2Row {
   queryJSON: string;
-}
-
-interface InboxProviderConfigRow {
-  id: number;
-  type: string;
-  identityJSON: string;
-  queryJSON: string;
-}
-
-interface ProviderRow {
-  id: number;
-  type: string;
-  identityJSON: string;
 }
 
 export type InboxProviderConfig2 = ProviderConfig2 & {
@@ -110,84 +96,6 @@ function getConvoRowsByInbox(
     .all(inboxID) as ConvoRow[];
 }
 
-function providerArgsToIdentity(
-  args: InboxProviderConfig['args'],
-): ProviderIdentity {
-  if (!args || typeof args !== 'object' || Array.isArray(args)) {
-    return {};
-  }
-
-  return args as ProviderIdentity;
-}
-
-function splitProviderArgs(
-  type: string,
-  args: InboxProviderConfig['args'],
-): { identity: ProviderIdentity; query: ProviderIdentity } {
-  const argsObject = providerArgsToIdentity(args);
-
-  if (type === 'gmail') {
-    const identity: ProviderIdentity = {};
-    const query: ProviderIdentity = {};
-
-    for (const [key, value] of Object.entries(argsObject)) {
-      if (key === 'searchQuery') {
-        query.searchQuery = value;
-      } else {
-        identity[key] = value;
-      }
-    }
-
-    return { identity, query };
-  }
-
-  if (type === 'slack') {
-    return { identity: {}, query: argsObject };
-  }
-
-  return { identity: {}, query: argsObject };
-}
-
-function combineProviderIdentityAndQuery(
-  identity: ProviderIdentity,
-  query: ProviderIdentity,
-): InboxProviderConfig['args'] {
-  const merged = { ...identity, ...query };
-  return Object.keys(merged).length > 0 ? merged : null;
-}
-
-function getInboxProviderConfigsInternal(
-  database: Database.Database,
-  inboxID: string,
-): InboxProviderConfig[] {
-  const rows = database
-    .prepare(
-      `
-        SELECT
-          p.id AS id,
-          p.type AS type,
-          p.identity AS identityJSON,
-          ip.query AS queryJSON
-        FROM inbox_providers ip
-        JOIN providers p ON p.id = ip.provider_id
-        WHERE ip.inbox_id = ?
-        ORDER BY p.id
-      `,
-    )
-    .all(inboxID) as InboxProviderConfigRow[];
-
-  return rows.map((row) => {
-    const identity = parseProviderIdentity(row.identityJSON);
-    const query = parseProviderIdentity(row.queryJSON);
-
-    return {
-      id: row.id.toString(),
-      type: row.type,
-      args: combineProviderIdentityAndQuery(identity, query),
-    };
-  });
-}
-
 function parseProviderIdentity(identityJSON: string): ProviderIdentity {
   let parsed: unknown;
   try {
@@ -216,7 +124,6 @@ function inboxFromRow(database: Database.Database, row: InboxRow): Inbox {
   return {
     id: row.id,
     convos: getConvoRowsByInbox(database, row.id).map(convoFromRow),
-    providers: getInboxProviderConfigsInternal(database, row.id),
   };
 }
 
@@ -233,7 +140,7 @@ export function createInbox(id: string): Inbox {
   const database = initializeDatabase();
   database.prepare('INSERT INTO inbox (id) VALUES (?)').run(id);
   logger.info({ inboxID: id }, 'created inbox');
-  return { id, convos: [], providers: [] };
+  return { id, convos: [] };
 }
 
 export function deleteInbox(id: string): boolean {
@@ -279,11 +186,6 @@ export function getConvo(sourceURL: string): Convo | null {
   return convoFromRow(convoRow);
 }
 
-export function getInboxProviders(inboxID: string): InboxProviderConfig[] {
-  const database = initializeDatabase();
-  return getInboxProviderConfigsInternal(database, inboxID);
-}
-
 export function getInboxProviders2(inboxID: string): InboxProviderConfig2[] {
   const database = initializeDatabase();
   const rows = database
@@ -307,90 +209,6 @@ export function getInboxProviders2(inboxID: string): InboxProviderConfig2[] {
     ...providerConfig2FromRow(row),
     query: parseProviderIdentity(row.queryJSON),
   }));
-}
-
-function parseProviderID(providerID: string): number | null {
-  if (!/^\d+$/.test(providerID)) {
-    return null;
-  }
-  const parsed = Number.parseInt(providerID, 10);
-  if (!Number.isInteger(parsed) || parsed <= 0) {
-    return null;
-  }
-  return parsed;
-}
-
-function getProviderConfigByIDInternal(
-  database: Database.Database,
-  providerID: number,
-): ProviderRow | undefined {
-  return database
-    .prepare(
-      'SELECT id, type, identity AS identityJSON FROM providers WHERE id = ?',
-    )
-    .get(providerID) as ProviderRow | undefined;
-}
-
-function linkProviderToInbox(
-  database: Database.Database,
-  inboxID: string,
-  providerID: number,
-  query: ProviderIdentity,
-): void {
-  database
-    .prepare(
-      `
-        INSERT INTO inbox_providers (inbox_id, provider_id, query)
-        VALUES (?, ?, ?)
-        ON CONFLICT(inbox_id, provider_id, query)
-        DO NOTHING
-      `,
-    )
-    .run(inboxID, providerID, JSON.stringify(query));
-}
-
-export function createProviderConfig(
-  inboxID: string,
-  config: InboxProviderConfig,
-): InboxProviderConfig {
-  const database = initializeDatabase();
-  const split = splitProviderArgs(config.type, config.args);
-  const existingProviderID = parseProviderID(config.id);
-  if (existingProviderID) {
-    const existing = getProviderConfigByIDInternal(
-      database,
-      existingProviderID,
-    );
-    if (existing) {
-      const existingSplit = splitProviderArgs(existing.type, config.args);
-      linkProviderToInbox(
-        database,
-        inboxID,
-        existingProviderID,
-        existingSplit.query,
-      );
-      const identity = parseProviderIdentity(existing.identityJSON);
-      return {
-        id: existing.id.toString(),
-        type: existing.type,
-        args: combineProviderIdentityAndQuery(identity, existingSplit.query),
-      };
-    }
-  }
-
-  const provider2 = createProviderConfig2({
-    type: config.type,
-    secretsValue: '',
-    identity: split.identity,
-  });
-
-  linkProviderToInbox(database, inboxID, provider2.id, split.query);
-
-  return {
-    id: provider2.id.toString(),
-    type: provider2.type,
-    args: combineProviderIdentityAndQuery(provider2.identity, split.query),
-  };
 }
 
 export function setInboxProviderAssociations(
@@ -507,93 +325,6 @@ export function getProviderConfig2(id: number): ProviderConfig2 | null {
   }
 
   return providerConfig2FromRow(row);
-}
-
-export function updateProviderConfig(
-  inboxID: string,
-  id: string,
-  updates: { type?: string; args?: InboxProviderConfig['args'] },
-): InboxProviderConfig | null {
-  const database = initializeDatabase();
-  const providerID = parseProviderID(id);
-  if (!providerID) {
-    return null;
-  }
-
-  const linkRow = database
-    .prepare(
-      `
-        SELECT id, query AS queryJSON
-        FROM inbox_providers
-        WHERE inbox_id = ? AND provider_id = ?
-        ORDER BY id
-        LIMIT 1
-      `,
-    )
-    .get(inboxID, providerID) as { id: number; queryJSON: string } | undefined;
-  if (!linkRow) {
-    return null;
-  }
-
-  const row = getProviderConfigByIDInternal(database, providerID);
-  if (!row) {
-    return null;
-  }
-
-  const nextType = updates.type ?? row.type;
-  let nextIdentity = parseProviderIdentity(row.identityJSON);
-  let nextQuery = parseProviderIdentity(linkRow.queryJSON);
-
-  if (updates.args !== undefined) {
-    const split = splitProviderArgs(nextType, updates.args);
-    nextIdentity = split.identity;
-    nextQuery = split.query;
-  }
-
-  database
-    .prepare('UPDATE providers SET type = ?, identity = ? WHERE id = ?')
-    .run(nextType, JSON.stringify(nextIdentity), providerID);
-
-  if (updates.args !== undefined) {
-    database
-      .prepare('UPDATE inbox_providers SET query = ? WHERE id = ?')
-      .run(JSON.stringify(nextQuery), linkRow.id);
-  }
-
-  return {
-    id: providerID.toString(),
-    type: nextType,
-    args: combineProviderIdentityAndQuery(nextIdentity, nextQuery),
-  };
-}
-
-export function deleteProviderConfig(inboxID: string, id: string): boolean {
-  const database = initializeDatabase();
-  const providerID = parseProviderID(id);
-  if (!providerID) {
-    return false;
-  }
-
-  const unlinkResult = database
-    .prepare(
-      'DELETE FROM inbox_providers WHERE inbox_id = ? AND provider_id = ?',
-    )
-    .run(inboxID, providerID);
-  if (unlinkResult.changes === 0) {
-    return false;
-  }
-
-  const remainingLinkRow = database
-    .prepare(
-      'SELECT COUNT(*) AS count FROM inbox_providers WHERE provider_id = ?',
-    )
-    .get(providerID) as { count: number };
-
-  if (remainingLinkRow.count === 0) {
-    database.prepare('DELETE FROM providers WHERE id = ?').run(providerID);
-  }
-
-  return true;
 }
 
 export function mergeMessages(
@@ -723,12 +454,6 @@ export function resetAllData(): void {
 export function seedDummyData(): void {
   const database = initializeDatabase();
   const insertInbox = database.prepare('INSERT INTO inbox (id) VALUES (?)');
-  const insertProvider = database.prepare(
-    'INSERT INTO providers (secrets_value, type, identity) VALUES (?, ?, ?)',
-  );
-  const insertInboxProvider = database.prepare(
-    'INSERT INTO inbox_providers (inbox_id, provider_id, query) VALUES (?, ?, ?)',
-  );
   const insertConvo = database.prepare(
     `
       INSERT INTO convo (id, source_url, inbox_id, messages_json)
@@ -742,41 +467,12 @@ export function seedDummyData(): void {
     for (const inbox of DUMMY_DATA) {
       insertInbox.run(inbox.id);
 
-      const providerIDMap = new Map<string, string>();
-      for (const provider of inbox.providers) {
-        const split = splitProviderArgs(provider.type, provider.args);
-        const result = insertProvider.run(
-          '',
-          provider.type,
-          JSON.stringify(split.identity),
-        );
-        const providerID = Number(result.lastInsertRowid);
-        insertInboxProvider.run(
-          inbox.id,
-          providerID,
-          JSON.stringify(split.query),
-        );
-        providerIDMap.set(provider.id, providerID.toString());
-      }
-
       for (const convo of inbox.convos) {
         insertConvo.run({
           id: convo.id,
           sourceURL: convo.sourceURL,
           inboxID: inbox.id,
-          messagesJSON: JSON.stringify(
-            convo.messages.map((message) => {
-              const mappedProviderID = providerIDMap.get(message.providerID);
-              if (!mappedProviderID) {
-                return message;
-              }
-
-              return {
-                ...message,
-                providerID: mappedProviderID,
-              };
-            }),
-          ),
+          messagesJSON: JSON.stringify(convo.messages),
         });
       }
     }

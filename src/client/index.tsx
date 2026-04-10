@@ -205,9 +205,9 @@ function Footer({
   height: number;
 }) {
   const safeStatus = sanitizeForTerminalText(status);
-  const providerLabel = inbox
-    ? `Providers: ${inbox.providers.length > 0 ? inbox.providers.map((p) => `${sanitizeForTerminalText(p.id)}(${sanitizeForTerminalText(p.type)})`).join(', ') : '(none)'}`
-    : 'Providers: (no inbox selected)';
+  const inboxLabel = inbox
+    ? `Selected inbox: ${sanitizeForTerminalText(inbox.id)}`
+    : 'Selected inbox: (none)';
   const convoLabel = convo
     ? `Selected convo: ${sanitizeForTerminalText(convo.sourceURL)}`
     : 'Selected convo: (none)';
@@ -228,7 +228,7 @@ function Footer({
         clear inbox · q quit
       </Text>
       <Text wrap="truncate-end">
-        {providerLabel} · {convoLabel}
+        {inboxLabel} · {convoLabel}
       </Text>
     </Box>
   );
@@ -388,13 +388,7 @@ function App() {
         setStatus('No inbox selected.');
         return;
       }
-      if (currentInbox.providers.length === 0) {
-        setStatus('No providers configured for this inbox.');
-        return;
-      }
-      setStatus(
-        `Fetching from ${currentInbox.providers.length} provider(s)...`,
-      );
+      setStatus(`Fetching providers for inbox "${currentInbox.id}"...`);
       void (async () => {
         try {
           const result = await api.fetchProviders(currentInbox.id);

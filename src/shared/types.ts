@@ -112,32 +112,6 @@ type _jsonSerializableSchemaProducesJsonSerializable = AssertTrue<
     : false
 >;
 
-export interface InboxProviderConfig<
-  A extends JsonSerializable = JsonSerializable,
-> {
-  id: string;
-  type: string;
-  args: A;
-}
-
-export const inboxProviderConfigSchema: z.ZodType<InboxProviderConfig> =
-  z.object({
-    id: z.string(),
-    type: z.string(),
-    args: jsonSerializableSchema,
-  });
-
-type _inboxProviderConfigSatisfiesInboxProviderConfigSchema = AssertTrue<
-  InboxProviderConfig extends z.input<typeof inboxProviderConfigSchema>
-    ? true
-    : false
->;
-type _inboxProviderConfigSchemaProducesInboxProviderConfig = AssertTrue<
-  z.output<typeof inboxProviderConfigSchema> extends InboxProviderConfig
-    ? true
-    : false
->;
-
 export type ProviderIdentity = { [key: string]: JsonSerializable };
 
 export const providerIdentitySchema: z.ZodType<ProviderIdentity> = z.record(
@@ -180,13 +154,11 @@ type _providerConfig2SchemaProducesProviderConfig2 = AssertTrue<
 export interface Inbox {
   id: string;
   convos: Convo[];
-  providers: InboxProviderConfig[];
 }
 
 export const inboxSchema: z.ZodType<Inbox> = z.object({
   id: z.string(),
   convos: z.array(convoSchema),
-  providers: z.array(inboxProviderConfigSchema),
 });
 
 type _inboxSatisfiesInboxSchema = AssertTrue<

@@ -3,7 +3,6 @@ import type { Inbox } from '../shared/types';
 export const DUMMY_DATA: Inbox[] = [
   {
     id: 'personal',
-    providers: [{ id: 'dummy-1', type: 'dummy', args: null }],
     convos: [
       {
         id: 'convo-alex',
@@ -42,7 +41,6 @@ export const DUMMY_DATA: Inbox[] = [
   },
   {
     id: 'work',
-    providers: [],
     convos: [
       {
         id: 'convo-phoenix',

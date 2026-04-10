@@ -4,6 +4,7 @@ import {
   createInbox,
   createProviderConfig2,
   deleteInbox,
+  getInboxProviders2,
   listInboxes,
   listProviderConfigs2,
   setInboxProviderAssociations,
@@ -110,9 +111,7 @@ export const load: PageServerLoad = ({ url }) => {
 
   const inboxProviderAssignments = inboxes.map((inbox) => ({
     inboxID: inbox.id,
-    providerIDs: inbox.providers
-      .map((provider) => Number.parseInt(provider.id, 10))
-      .filter((id) => Number.isInteger(id) && id > 0),
+    providerIDs: getInboxProviders2(inbox.id).map((provider) => provider.id),
   }));
 
   const authError = url.searchParams.get('auth_error') ?? null;
