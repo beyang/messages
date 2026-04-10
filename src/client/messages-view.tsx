@@ -9,6 +9,10 @@ interface RenderedLine {
   dimColor?: boolean;
 }
 
+function textLength(text: string): number {
+  return [...text].length;
+}
+
 function wrapTextLines(text: string, width: number): string[] {
   const safeWidth = Math.max(1, width);
 
@@ -25,6 +29,43 @@ function wrapTextLines(text: string, width: number): string[] {
         wrapped.push(chars.slice(start, start + safeWidth).join(''));
       }
 
+      return wrapped;
+    });
+}
+
+function wrapTextLinesAtWordBoundaries(text: string, width: number): string[] {
+  const safeWidth = Math.max(1, width);
+
+  return sanitizeForTerminalText(text)
+    .split('\n')
+    .flatMap((line) => {
+      if (line.length === 0) {
+        return [''];
+      }
+
+      const words = line
+        .trim()
+        .split(/\s+/)
+        .filter((word) => word.length > 0);
+      if (words.length === 0) {
+        return [''];
+      }
+
+      const wrapped: string[] = [];
+      let currentLine = words[0] ?? '';
+
+      for (const word of words.slice(1)) {
+        const candidateLine = `${currentLine} ${word}`;
+        if (textLength(candidateLine) <= safeWidth) {
+          currentLine = candidateLine;
+          continue;
+        }
+
+        wrapped.push(currentLine);
+        currentLine = word;
+      }
+
+      wrapped.push(currentLine);
       return wrapped;
     });
 }
@@ -50,8 +91,8 @@ function buildMessageLines(
     })),
     ...wrapTextLines(`Time: ${message.timestamp ?? ''}`, safeWidth).map(
       (text) => ({
-      text,
-      dimColor: true,
+        text,
+        dimColor: true,
       }),
     ),
     ...wrapTextLines(`From: ${authorLabel}`, safeWidth).map((text) => ({
@@ -59,7 +100,9 @@ function buildMessageLines(
       bold: true,
     })),
     { text: '' },
-    ...wrapTextLines(bodyText, safeWidth).map((text) => ({ text })),
+    ...wrapTextLinesAtWordBoundaries(bodyText, safeWidth).map((text) => ({
+      text,
+    })),
   ];
 
   if (showSeparator) {

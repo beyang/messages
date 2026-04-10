@@ -476,7 +476,12 @@ function App() {
           width="50%"
           height={mainHeight}
         >
-          <Box flexDirection="column" flexGrow={1} minHeight={0} paddingLeft={1}>
+          <Box
+            flexDirection="column"
+            flexGrow={1}
+            minHeight={0}
+            paddingLeft={1}
+          >
             <MessagesView
               convo={currentConvo}
               lines={currentConvoLines}
