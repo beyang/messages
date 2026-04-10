@@ -224,6 +224,7 @@ export class GmailProvider implements Provider<GmailProviderArgs> {
             return {
               id: msg.id,
               sourceURL: `https://mail.google.com/mail/u/0/#inbox/${msg.id}`,
+              providerID: this.id,
               content: extractMessageContent(msg.payload),
               ...(subject ? { subject } : {}),
               ...(from ? { author: parseFromHeader(from) } : {}),

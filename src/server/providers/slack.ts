@@ -230,6 +230,7 @@ export class SlackProvider implements Provider<SlackProviderArgs> {
         message: {
           id: `slack-${channelID}-${sanitizeSlackTimestamp(ts)}`,
           sourceURL: messageSourceURL(match, channelID, ts),
+          providerID: this.id,
           content: match.text ?? '',
           ...(username ? { author: { username } } : {}),
         },

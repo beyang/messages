@@ -11,6 +11,7 @@ describe('buildConvoMessageLines', () => {
         {
           id: 'm-1',
           sourceURL: 'u',
+          providerID: 'test-provider',
           content: 'alpha beta gamma delta',
           author: { username: 'a' },
           timestamp: 't',

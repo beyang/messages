@@ -22,6 +22,7 @@ type _authorSchemaProducesAuthor = AssertTrue<
 export interface Message {
   id: string;
   sourceURL: string;
+  providerID: string;
   content: string;
   subject?: string;
   author?: Author;
@@ -32,15 +33,22 @@ export const messageSchema: z.ZodType<Message> = z
   .object({
     id: z.string(),
     sourceURL: z.string(),
+    providerID: z.unknown().optional(),
     content: z.string(),
     subject: z.unknown().optional(),
     author: authorSchema.optional(),
     timestamp: z.string().optional(),
   })
   .transform((entry): Message => {
+    const providerID =
+      typeof entry.providerID === 'string' && entry.providerID.length > 0
+        ? entry.providerID
+        : 'legacy-unknown';
+
     const message: Message = {
       id: entry.id,
       sourceURL: entry.sourceURL,
+      providerID,
       content: entry.content,
     };
     if (typeof entry.subject === 'string') {

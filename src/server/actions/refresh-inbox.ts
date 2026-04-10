@@ -15,8 +15,15 @@ export async function refreshInbox(
       if (fetchResult.needsAuth) {
         result.needsAuth = fetchResult.needsAuth;
       }
-      if (fetchResult.convos.length > 0) {
-        const merged = mergeConvosIntoInbox(inboxID, fetchResult.convos);
+      const providerConvos = fetchResult.convos.map((convo) => ({
+        ...convo,
+        messages: convo.messages.map((message) => ({
+          ...message,
+          providerID: config.id,
+        })),
+      }));
+      if (providerConvos.length > 0) {
+        const merged = mergeConvosIntoInbox(inboxID, providerConvos);
         result.convos.push(...merged);
       }
       if (fetchResult.errors) {

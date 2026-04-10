@@ -29,11 +29,13 @@ export class DummyProvider implements Provider<null> {
             {
               id: `${this.id}-stable-msg`,
               sourceURL: `https://dummy.example.com/messages/${this.id}-stable`,
+              providerID: this.id,
               content: `Hello from dummy provider "${this.id}" – this message never changes.`,
             },
             {
               id: randomId,
               sourceURL: `https://dummy.example.com/messages/${randomId}`,
+              providerID: this.id,
               content: `New message from "${this.id}" at ${new Date().toISOString()}: ${crypto.randomUUID().slice(0, 8)}`,
             },
           ],

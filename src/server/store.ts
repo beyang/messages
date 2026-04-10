@@ -249,14 +249,30 @@ export function mergeMessages(
   existing: Message[],
   incoming: Message[],
 ): Message[] {
-  const seen = new Set(existing.map((m) => m.id));
   const merged = [...existing];
+  const existingIndexByID = new Map(
+    merged.map((message, index) => [message.id, index]),
+  );
+
   for (const msg of incoming) {
-    if (!seen.has(msg.id)) {
-      seen.add(msg.id);
+    const existingIndex = existingIndexByID.get(msg.id);
+    if (existingIndex === undefined) {
+      existingIndexByID.set(msg.id, merged.length);
       merged.push(msg);
+      continue;
+    }
+
+    if (msg.providerID) {
+      const existingMessage = merged[existingIndex];
+      if (existingMessage.providerID !== msg.providerID) {
+        merged[existingIndex] = {
+          ...existingMessage,
+          providerID: msg.providerID,
+        };
+      }
     }
   }
+
   return merged;
 }
 
