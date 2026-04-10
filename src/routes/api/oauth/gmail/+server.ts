@@ -1,25 +1,34 @@
 import type { RequestHandler } from '@sveltejs/kit';
 import { json } from '@sveltejs/kit';
 
-import { instantiateProvider } from '../../../../server/providers';
-import { getInboxProviders, listInboxes } from '../../../../server/store';
+import {
+  GmailProvider2,
+  type GmailProvider2Identity,
+} from '../../../../server/providers/gmail2';
+import { getProviderConfig2 } from '../../../../server/store';
 
 export const GET: RequestHandler = ({ url }) => {
-  const providerId = url.searchParams.get('provider_id');
-  if (!providerId) {
+  const providerIDParam = url.searchParams.get('provider_id');
+  if (!providerIDParam) {
     return json(
       { error: 'Query param "provider_id" is required.' },
       { status: 400 },
     );
   }
 
-  const inboxes = listInboxes();
-  let providerConfig = null;
-  for (const inbox of inboxes) {
-    const configs = getInboxProviders(inbox.id);
-    providerConfig = configs.find((c) => c.id === providerId) ?? null;
-    if (providerConfig) break;
+  const providerID = Number.parseInt(providerIDParam, 10);
+  if (
+    !Number.isInteger(providerID) ||
+    providerID <= 0 ||
+    providerIDParam !== providerID.toString()
+  ) {
+    return json(
+      { error: 'Query param "provider_id" must be a positive integer.' },
+      { status: 400 },
+    );
   }
+
+  const providerConfig = getProviderConfig2(providerID);
 
   if (!providerConfig) {
     return json({ error: 'Provider not found.' }, { status: 404 });
@@ -34,11 +43,21 @@ export const GET: RequestHandler = ({ url }) => {
     );
   }
 
-  const provider = instantiateProvider(providerConfig);
-  if (!provider.authInitURL) {
-    return json({ error: 'Provider does not support OAuth.' }, { status: 400 });
+  const email = providerConfig.identity.email;
+  if (typeof email !== 'string' || email.trim() === '') {
+    return json(
+      { error: 'Gmail provider identity.email is required.' },
+      { status: 400 },
+    );
   }
 
-  const authURL = provider.authInitURL(providerConfig.args, url.origin);
+  const identity: GmailProvider2Identity = {
+    ...providerConfig.identity,
+    email: email.trim(),
+  };
+  const provider = new GmailProvider2({ ...providerConfig, identity });
+
+  const authURL = provider.authInitURL(identity, url.origin);
+
   return json({ url: authURL });
 };

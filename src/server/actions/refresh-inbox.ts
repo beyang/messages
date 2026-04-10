@@ -1,17 +1,16 @@
-import type { FetchConvosResult, SecretStore } from '../../shared/types';
-import { fetchConvosFromProvider } from '../providers';
-import { getInboxProviders, mergeConvosIntoInbox } from '../store';
+import type { FetchConvosResult } from '../../shared/types';
+import { fetchConvosFromProvider2 } from '../providers/index2';
+import { getInboxProviders2, mergeConvosIntoInbox } from '../store';
 
 export async function refreshInbox(
   inboxID: string,
-  secrets: SecretStore,
 ): Promise<FetchConvosResult> {
-  const configs = getInboxProviders(inboxID);
+  const configs = getInboxProviders2(inboxID);
   const result: FetchConvosResult = { convos: [] };
 
   for (const config of configs) {
     try {
-      const fetchResult = await fetchConvosFromProvider(config, secrets);
+      const fetchResult = await fetchConvosFromProvider2(config, config.query);
       if (fetchResult.needsAuth) {
         result.needsAuth = fetchResult.needsAuth;
       }
@@ -19,7 +18,7 @@ export async function refreshInbox(
         ...convo,
         messages: convo.messages.map((message) => ({
           ...message,
-          providerID: config.id,
+          providerID: config.id.toString(),
         })),
       }));
       if (providerConvos.length > 0) {

@@ -1,14 +1,12 @@
 import type { RequestHandler } from '@sveltejs/kit';
 import { redirect } from '@sveltejs/kit';
-
-import { instantiateProvider } from '../../../../../server/providers';
+import { updateProviderSecretsValue } from '../../../../../server/providers/secrets';
 import { exchangeSlackCode } from '../../../../../server/providers/slack';
-import { SqliteSecretStore } from '../../../../../server/secret-store';
-import { getInboxProviders, listInboxes } from '../../../../../server/store';
+import { getProviderConfig2 } from '../../../../../server/store';
 
 export const GET: RequestHandler = async ({ url }) => {
   const code = url.searchParams.get('code');
-  const providerId = url.searchParams.get('state');
+  const providerIDParam = url.searchParams.get('state');
   const error = url.searchParams.get('error');
 
   if (error) {
@@ -17,20 +15,26 @@ export const GET: RequestHandler = async ({ url }) => {
       `/admin?auth_error=${encodeURIComponent(`OAuth error: ${error}`)}`,
     );
   }
-  if (!code || !providerId) {
+  if (!code || !providerIDParam) {
     redirect(
       303,
       `/admin?auth_error=${encodeURIComponent('Missing "code" or "state" query param.')}`,
     );
   }
 
-  const inboxes = listInboxes();
-  let providerConfig = null;
-  for (const inbox of inboxes) {
-    const configs = getInboxProviders(inbox.id);
-    providerConfig = configs.find((c) => c.id === providerId) ?? null;
-    if (providerConfig) break;
+  const providerID = Number.parseInt(providerIDParam, 10);
+  if (
+    !Number.isInteger(providerID) ||
+    providerID <= 0 ||
+    providerIDParam !== providerID.toString()
+  ) {
+    redirect(
+      303,
+      `/admin?auth_error=${encodeURIComponent('Invalid provider id.')}`,
+    );
   }
+
+  const providerConfig = getProviderConfig2(providerID);
 
   if (!providerConfig) {
     redirect(
@@ -49,11 +53,7 @@ export const GET: RequestHandler = async ({ url }) => {
   const redirectUri = `${url.origin}/api/oauth/slack/callback`;
   const { accessToken } = await exchangeSlackCode(code, redirectUri);
 
-  const secrets = new SqliteSecretStore();
-  const provider = instantiateProvider(providerConfig);
-  if (provider.handleAuthCallback) {
-    provider.handleAuthCallback(accessToken, secrets);
-  }
+  updateProviderSecretsValue(providerConfig.id, accessToken);
 
   redirect(303, '/admin?auth_success=Slack+OAuth+completed+successfully.');
 };

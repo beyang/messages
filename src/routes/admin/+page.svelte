@@ -6,45 +6,35 @@ import CodeMirrorEditor from './CodeMirrorEditor.svelte';
 let { data, form }: { data: PageData; form: ActionData } = $props();
 let showModal = $state(false);
 let showInboxModal = $state(false);
+let showSetInboxProvidersModal = $state(false);
 let selectedType = $state('dummy');
-let providerIdInput = $state<HTMLInputElement | undefined>();
 let inboxIdInput = $state<HTMLInputElement | undefined>();
+let selectedInboxForProviders = $state('');
+let selectedProviderIDs = $state<string[]>([]);
 
 let gmailEmail = $state('');
-let gmailSearchQuery = $state('');
-let slackSearchQuery = $state('');
 
 const oauthPathsByProviderType: Record<string, string> = {
   gmail: '/api/oauth/gmail',
   slack: '/api/oauth/slack',
 };
 
-let argsJson = $derived.by(() => {
+let identityJson = $derived.by(() => {
   if (selectedType === 'gmail') {
     return JSON.stringify({
       email: gmailEmail,
-      searchQuery: gmailSearchQuery,
     });
   }
-  if (selectedType === 'slack') {
-    return JSON.stringify({
-      searchQuery: slackSearchQuery,
-    });
-  }
-  return '';
+  return '{}';
 });
 
 function resetModal() {
   selectedType = 'dummy';
   gmailEmail = '';
-  gmailSearchQuery = '';
-  slackSearchQuery = '';
 }
 
 async function openProviderModal() {
   showModal = true;
-  await tick();
-  providerIdInput?.focus();
 }
 
 function closeProviderModal() {
@@ -79,15 +69,42 @@ let showAuthModal = $state(false);
 let authProviderId = $state('');
 let authError = $state('');
 
-let allProviders = $derived(
-  data.inboxProviders.flatMap((inbox) =>
-    inbox.providers.map((p) => ({ ...p, inboxId: inbox.inboxId })),
-  ),
+let allProviders = $derived(data.authProviders);
+let inboxProviderAssignmentByInboxID = $derived.by(
+  () =>
+    new Map(
+      data.inboxProviderAssignments.map((assignment) => [
+        assignment.inboxID,
+        assignment.providerIDs,
+      ]),
+    ),
 );
+
+function syncSelectedProvidersForInbox(inboxID: string) {
+  selectedProviderIDs =
+    inboxProviderAssignmentByInboxID
+      .get(inboxID)
+      ?.map((providerID) => String(providerID)) ?? [];
+}
+
+function openSetInboxProvidersModal() {
+  selectedInboxForProviders = data.inboxIDs[0] ?? '';
+  syncSelectedProvidersForInbox(selectedInboxForProviders);
+  showSetInboxProvidersModal = true;
+}
+
+function closeSetInboxProvidersModal() {
+  showSetInboxProvidersModal = false;
+}
+
+function handleInboxForProvidersChange(event: Event) {
+  selectedInboxForProviders = (event.currentTarget as HTMLSelectElement).value;
+  syncSelectedProvidersForInbox(selectedInboxForProviders);
+}
 
 function openAuthModal() {
   authError = '';
-  authProviderId = allProviders[0]?.id ?? '';
+  authProviderId = allProviders[0] ? String(allProviders[0].id) : '';
   showAuthModal = true;
 }
 
@@ -99,7 +116,9 @@ async function startAuth() {
   if (!authProviderId) return;
   authError = '';
 
-  const selectedProvider = allProviders.find((p) => p.id === authProviderId);
+  const selectedProvider = allProviders.find(
+    (p) => String(p.id) === authProviderId,
+  );
   if (!selectedProvider) {
     authError = 'Provider not found.';
     return;
@@ -133,6 +152,9 @@ async function startAuth() {
     <span class="header-actions">
       <button type="button" class="add-btn" onclick={openInboxModal}>Add Inbox</button>
       <button type="button" class="add-btn" onclick={openProviderModal}>Add Provider</button>
+      <button type="button" class="add-btn" onclick={openSetInboxProvidersModal}>
+        Set Inbox Providers
+      </button>
       <button type="button" class="add-btn" onclick={openAuthModal}>Authorize</button>
     </span>
   </h1>
@@ -227,18 +249,6 @@ async function startAuth() {
       <h2>Add Provider</h2>
       <form method="POST" action="?/addProvider">
         <label>
-          Inbox ID
-          <select name="inboxId" required>
-            {#each data.inboxIds as id}
-              <option value={id}>{id}</option>
-            {/each}
-          </select>
-        </label>
-        <label>
-          Provider ID
-          <input bind:this={providerIdInput} name="providerId" required placeholder="my-gmail" />
-        </label>
-        <label>
           Type
           <select name="type" required bind:value={selectedType}>
             <option value="dummy">dummy</option>
@@ -252,18 +262,9 @@ async function startAuth() {
             Email
             <input bind:value={gmailEmail} required placeholder="you@gmail.com" type="email" />
           </label>
-          <label>
-            Search Query
-            <input bind:value={gmailSearchQuery} required placeholder="label:inbox" />
-          </label>
-        {:else if selectedType === 'slack'}
-          <label>
-            Search Query
-            <input bind:value={slackSearchQuery} required placeholder="in:#engineering incident" />
-          </label>
         {/if}
 
-        <input type="hidden" name="args" value={argsJson} />
+        <input type="hidden" name="identity" value={identityJson} />
 
         <div class="modal-actions">
           <button type="button" onclick={closeProviderModal}>Cancel</button>
@@ -293,6 +294,61 @@ async function startAuth() {
   </div>
 {/if}
 
+{#if showSetInboxProvidersModal}
+  <div class="overlay" onclick={closeSetInboxProvidersModal} role="presentation">
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <div class="modal" onclick={(e) => e.stopPropagation()} role="dialog" tabindex="-1">
+      <h2>Set Inbox Providers</h2>
+      {#if data.inboxIDs.length === 0}
+        <p class="empty">No inboxes configured. Add an inbox first.</p>
+        <div class="modal-actions">
+          <button type="button" onclick={closeSetInboxProvidersModal}>Close</button>
+        </div>
+      {:else}
+        <form method="POST" action="?/setInboxProviders">
+          <label>
+            Inbox
+            <select
+              name="inboxId"
+              required
+              bind:value={selectedInboxForProviders}
+              onchange={handleInboxForProvidersChange}
+            >
+              {#each data.inboxIDs as inboxID}
+                <option value={inboxID}>{inboxID}</option>
+              {/each}
+            </select>
+          </label>
+
+          <fieldset class="provider-list">
+            <legend>Providers</legend>
+            {#if allProviders.length === 0}
+              <p class="empty">No providers configured. Save to clear all provider links.</p>
+            {:else}
+              {#each allProviders as provider}
+                <label class="provider-option">
+                  <input
+                    type="checkbox"
+                    name="providerIDs"
+                    value={String(provider.id)}
+                    bind:group={selectedProviderIDs}
+                  />
+                  <span>{provider.id} ({provider.type}) — {provider.identityJSON}</span>
+                </label>
+              {/each}
+            {/if}
+          </fieldset>
+
+          <div class="modal-actions">
+            <button type="button" onclick={closeSetInboxProvidersModal}>Cancel</button>
+            <button type="submit">Save</button>
+          </div>
+        </form>
+      {/if}
+    </div>
+  </div>
+{/if}
+
 {#if showAuthModal}
   <div class="overlay" onclick={closeAuthModal} role="presentation">
     <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -311,7 +367,7 @@ async function startAuth() {
           Provider
           <select bind:value={authProviderId}>
             {#each allProviders as p}
-              <option value={p.id}>{p.id} ({p.type}) — {p.inboxId}</option>
+              <option value={String(p.id)}>{p.id} ({p.type}) — {p.identityJSON}</option>
             {/each}
           </select>
         </label>
@@ -616,5 +672,35 @@ async function startAuth() {
   }
   .modal-actions button.auth-submit:hover {
     background: #2563eb;
+  }
+
+  .provider-list {
+    margin: 0;
+    padding: 0;
+    border: none;
+  }
+
+  .provider-list legend {
+    margin-bottom: 0.5rem;
+    font-size: 0.85rem;
+    color: #cbd5e1;
+  }
+
+  .provider-option {
+    display: flex;
+    gap: 0.5rem;
+    align-items: flex-start;
+    margin-bottom: 0.5rem;
+  }
+
+  .provider-option input[type='checkbox'] {
+    width: auto;
+    margin-top: 0.1rem;
+  }
+
+  .provider-option span {
+    font-family: ui-monospace, monospace;
+    font-size: 0.8rem;
+    color: #e2e8f0;
   }
 </style>

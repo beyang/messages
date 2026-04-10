@@ -16,9 +16,29 @@ TABLE: convo
 TABLE: inbox
   Columns:
     id TEXT PRIMARY KEY
-    providers_json TEXT NOT NULL DEFAULT '[]'
+
+TABLE: inbox_providers
+  Columns:
+    id INTEGER PRIMARY KEY
+    inbox_id TEXT NOT NULL
+    provider_id INTEGER NOT NULL
+    query TEXT NOT NULL DEFAULT '{}'
+  Foreign keys:
+    provider_id -> providers(id) ON DELETE CASCADE ON UPDATE NO ACTION
+    inbox_id -> inbox(id) ON DELETE CASCADE ON UPDATE NO ACTION
+  Indexes:
+    idx_inbox_providers_provider_id (provider_id)
+    idx_inbox_providers_inbox_id (inbox_id)
+    sqlite_autoindex_inbox_providers_1 UNIQUE (inbox_id, provider_id, query)
 
 TABLE: provider_secrets
   Columns:
     key TEXT PRIMARY KEY
     value TEXT NOT NULL
+
+TABLE: providers
+  Columns:
+    id INTEGER PRIMARY KEY
+    secrets_value TEXT NOT NULL
+    type TEXT NOT NULL
+    identity TEXT NOT NULL DEFAULT '{}'

@@ -1,16 +1,15 @@
 import type { RequestHandler } from '@sveltejs/kit';
 import { redirect } from '@sveltejs/kit';
-import { instantiateProvider } from '../../../../../server/providers';
 import {
   exchangeGmailCode,
+  GmailProvider2,
+  type GmailProvider2Identity,
   getGmailProfileEmail,
-} from '../../../../../server/providers/gmail';
-import { SqliteSecretStore } from '../../../../../server/secret-store';
-import { getInboxProviders, listInboxes } from '../../../../../server/store';
-import type { GmailProviderArgs } from '../../../../../shared/gmail-types';
+} from '../../../../../server/providers/gmail2';
+import { getProviderConfig2 } from '../../../../../server/store';
 export const GET: RequestHandler = async ({ url }) => {
   const code = url.searchParams.get('code');
-  const providerId = url.searchParams.get('state');
+  const providerIDParam = url.searchParams.get('state');
   const error = url.searchParams.get('error');
 
   if (error) {
@@ -19,20 +18,26 @@ export const GET: RequestHandler = async ({ url }) => {
       `/admin?auth_error=${encodeURIComponent(`OAuth error: ${error}`)}`,
     );
   }
-  if (!code || !providerId) {
+  if (!code || !providerIDParam) {
     redirect(
       303,
       `/admin?auth_error=${encodeURIComponent('Missing "code" or "state" query param.')}`,
     );
   }
 
-  const inboxes = listInboxes();
-  let providerConfig = null;
-  for (const inbox of inboxes) {
-    const configs = getInboxProviders(inbox.id);
-    providerConfig = configs.find((c) => c.id === providerId) ?? null;
-    if (providerConfig) break;
+  const providerID = Number.parseInt(providerIDParam, 10);
+  if (
+    !Number.isInteger(providerID) ||
+    providerID <= 0 ||
+    providerIDParam !== providerID.toString()
+  ) {
+    redirect(
+      303,
+      `/admin?auth_error=${encodeURIComponent('Invalid provider id.')}`,
+    );
   }
+
+  const providerConfig = getProviderConfig2(providerID);
 
   if (!providerConfig) {
     redirect(
@@ -55,19 +60,30 @@ export const GET: RequestHandler = async ({ url }) => {
     redirectUri,
   );
 
-  const args = providerConfig.args as GmailProviderArgs;
   const profileEmail = await getGmailProfileEmail(accessToken);
-  if (args.email && profileEmail.toLowerCase() !== args.email.toLowerCase()) {
+  const identityEmail = providerConfig.identity.email;
+  if (
+    typeof identityEmail === 'string' &&
+    identityEmail.trim() !== '' &&
+    profileEmail.toLowerCase() !== identityEmail.toLowerCase()
+  ) {
     redirect(
       303,
-      `/admin?auth_error=${encodeURIComponent(`Authorized account (${profileEmail}) does not match configured email (${args.email}).`)}`,
+      `/admin?auth_error=${encodeURIComponent(`Authorized account (${profileEmail}) does not match configured email (${identityEmail}).`)}`,
     );
   }
 
-  const secrets = new SqliteSecretStore();
-  const provider = instantiateProvider(providerConfig);
+  const identity: GmailProvider2Identity = {
+    ...providerConfig.identity,
+    email:
+      typeof identityEmail === 'string' && identityEmail.trim() !== ''
+        ? identityEmail.trim()
+        : profileEmail,
+  };
+  const provider = new GmailProvider2({ ...providerConfig, identity });
+
   if (provider.handleAuthCallback) {
-    provider.handleAuthCallback(refreshToken, secrets);
+    provider.handleAuthCallback(refreshToken);
   }
 
   redirect(303, '/admin?auth_success=Gmail+OAuth+completed+successfully.');

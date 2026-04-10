@@ -131,6 +131,45 @@ type _providerConfigSchemaProducesProviderConfig = AssertTrue<
   z.output<typeof providerConfigSchema> extends ProviderConfig ? true : false
 >;
 
+export type ProviderIdentity = { [key: string]: JsonSerializable };
+
+export const providerIdentitySchema: z.ZodType<ProviderIdentity> = z.record(
+  z.string(),
+  jsonSerializableSchema,
+);
+
+type _providerIdentitySatisfiesProviderIdentitySchema = AssertTrue<
+  ProviderIdentity extends z.input<typeof providerIdentitySchema> ? true : false
+>;
+type _providerIdentitySchemaProducesProviderIdentity = AssertTrue<
+  z.output<typeof providerIdentitySchema> extends ProviderIdentity
+    ? true
+    : false
+>;
+
+export interface ProviderConfig2<
+  I extends ProviderIdentity = ProviderIdentity,
+> {
+  id: number;
+  secretsValue: string;
+  type: string;
+  identity: I;
+}
+
+export const providerConfig2Schema: z.ZodType<ProviderConfig2> = z.object({
+  id: z.number().int(),
+  secretsValue: z.string(),
+  type: z.string(),
+  identity: providerIdentitySchema,
+});
+
+type _providerConfig2SatisfiesProviderConfig2Schema = AssertTrue<
+  ProviderConfig2 extends z.input<typeof providerConfig2Schema> ? true : false
+>;
+type _providerConfig2SchemaProducesProviderConfig2 = AssertTrue<
+  z.output<typeof providerConfig2Schema> extends ProviderConfig2 ? true : false
+>;
+
 export interface Inbox {
   id: string;
   convos: Convo[];
@@ -217,6 +256,22 @@ export interface Provider<A extends JsonSerializable = JsonSerializable> {
   ): Promise<void>;
   authInitURL?(args: A, baseURL: string): string;
   handleAuthCallback?(secret: string, secrets: SecretStore): void;
+}
+
+export interface Provider2<
+  I extends JsonSerializable,
+  Q extends JsonSerializable,
+> {
+  type: string;
+  id: number;
+  fetchConvos(identity: I, query: Q): Promise<FetchConvosResult>;
+  setStar(
+    identity: I,
+    messageSourceURL: string,
+    starred: boolean,
+  ): Promise<void>;
+  authInitURL?(identity: I, baseURL: string): string;
+  handleAuthCallback?(secret: string): void;
 }
 
 export const providerSchema: z.ZodType<Provider> = z.object({

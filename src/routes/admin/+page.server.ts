@@ -2,11 +2,13 @@ import { fail } from '@sveltejs/kit';
 import { initializeDatabase } from '../../server/db';
 import {
   createInbox,
-  createProviderConfig,
+  createProviderConfig2,
   deleteInbox,
   listInboxes,
+  listProviderConfigs2,
+  setInboxProviderAssociations,
 } from '../../server/store';
-import type { ProviderConfig } from '../../shared/types';
+import { providerIdentitySchema } from '../../shared/types';
 import type { Actions, PageServerLoad } from './$types';
 
 interface TablePage {
@@ -30,7 +32,13 @@ function isInboxAlreadyExistsError(error: unknown): boolean {
   );
 }
 
-const ALLOWED_TABLES = new Set(['inbox', 'convo', 'provider_secrets']);
+const ALLOWED_TABLES = new Set([
+  'inbox',
+  'inbox_providers',
+  'convo',
+  'provider_secrets',
+  'providers',
+]);
 
 function getTablePrimaryKey(
   db: ReturnType<typeof initializeDatabase>,
@@ -78,7 +86,13 @@ function queryTable(
 export const load: PageServerLoad = ({ url }) => {
   const pageSize = 20;
 
-  const tables = ['inbox', 'convo', 'provider_secrets'] as const;
+  const tables = [
+    'inbox',
+    'inbox_providers',
+    'convo',
+    'provider_secrets',
+    'providers',
+  ] as const;
   const data: Record<string, TablePage> = {};
 
   for (const table of tables) {
@@ -86,14 +100,19 @@ export const load: PageServerLoad = ({ url }) => {
     data[table] = queryTable(table, Math.max(1, page), pageSize);
   }
 
-  const db = initializeDatabase();
-  const inboxes = (
-    db.prepare('SELECT id FROM inbox ORDER BY id').all() as { id: string }[]
-  ).map((r) => r.id);
+  const inboxes = listInboxes();
 
-  const inboxProviders = listInboxes().map((inbox) => ({
-    inboxId: inbox.id,
-    providers: inbox.providers.map((p) => ({ id: p.id, type: p.type })),
+  const authProviders = listProviderConfigs2().map((provider) => ({
+    id: provider.id,
+    type: provider.type,
+    identityJSON: JSON.stringify(provider.identity),
+  }));
+
+  const inboxProviderAssignments = inboxes.map((inbox) => ({
+    inboxID: inbox.id,
+    providerIDs: inbox.providers
+      .map((provider) => Number.parseInt(provider.id, 10))
+      .filter((id) => Number.isInteger(id) && id > 0),
   }));
 
   const authError = url.searchParams.get('auth_error') ?? null;
@@ -101,8 +120,9 @@ export const load: PageServerLoad = ({ url }) => {
 
   return {
     tables: data,
-    inboxIds: inboxes,
-    inboxProviders,
+    inboxIDs: inboxes.map((inbox) => inbox.id),
+    inboxProviderAssignments,
+    authProviders,
     authError,
     authSuccess,
   };
@@ -111,32 +131,43 @@ export const load: PageServerLoad = ({ url }) => {
 export const actions: Actions = {
   addProvider: async ({ request }) => {
     const form = await request.formData();
-    const inboxId = form.get('inboxId') as string | null;
-    const providerId = form.get('providerId') as string | null;
     const type = form.get('type') as string | null;
-    const argsJson = form.get('args') as string | null;
+    const identityJson = form.get('identity') as string | null;
 
-    if (!inboxId?.trim()) return fail(400, { error: 'Inbox ID is required.' });
-    if (!providerId?.trim())
-      return fail(400, { error: 'Provider ID is required.' });
     if (!type?.trim()) return fail(400, { error: 'Type is required.' });
 
-    let args: ProviderConfig['args'] = null;
-    if (argsJson?.trim()) {
+    let parsedIdentity: unknown = {};
+    if (identityJson?.trim()) {
       try {
-        args = JSON.parse(argsJson) as ProviderConfig['args'];
+        parsedIdentity = JSON.parse(identityJson);
       } catch {
-        return fail(400, { error: 'Args must be valid JSON.' });
+        return fail(400, { error: 'Identity must be valid JSON.' });
       }
     }
 
-    createProviderConfig(inboxId.trim(), {
-      id: providerId.trim(),
-      type: type.trim(),
-      args,
+    const identityResult = providerIdentitySchema.safeParse(parsedIdentity);
+    if (!identityResult.success) {
+      return fail(400, { error: 'Identity must be a JSON object.' });
+    }
+
+    const trimmedType = type.trim();
+    const identity = { ...identityResult.data };
+
+    if (trimmedType === 'gmail') {
+      const email = identity.email;
+      if (typeof email !== 'string' || email.trim() === '') {
+        return fail(400, { error: 'Gmail identity.email is required.' });
+      }
+      identity.email = email.trim();
+    }
+
+    const provider = createProviderConfig2({
+      type: trimmedType,
+      secretsValue: '',
+      identity,
     });
 
-    return { success: 'Provider added.' };
+    return { success: `Provider added (id=${provider.id}).` };
   },
   addInbox: async ({ request }) => {
     const form = await request.formData();
@@ -166,6 +197,53 @@ export const actions: Actions = {
     if (!deleted) return fail(404, { error: 'Inbox not found.' });
 
     return { success: 'Inbox deleted.' };
+  },
+  setInboxProviders: async ({ request }) => {
+    const form = await request.formData();
+    const inboxID = form.get('inboxId') as string | null;
+    const rawProviderIDs = form.getAll('providerIDs');
+
+    if (!inboxID?.trim()) {
+      return fail(400, { error: 'Inbox ID is required.' });
+    }
+
+    const providerIDs: number[] = [];
+    for (const rawProviderID of rawProviderIDs) {
+      if (typeof rawProviderID !== 'string') {
+        return fail(400, { error: 'Provider IDs must be strings.' });
+      }
+
+      const trimmed = rawProviderID.trim();
+      if (!/^\d+$/.test(trimmed)) {
+        return fail(400, { error: 'Provider IDs must be positive integers.' });
+      }
+
+      providerIDs.push(Number.parseInt(trimmed, 10));
+    }
+
+    try {
+      setInboxProviderAssociations(inboxID.trim(), providerIDs);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error('failed to set inbox providers', {
+        inboxID: inboxID.trim(),
+        providerIDs,
+        error,
+      });
+      if (
+        message === 'Inbox not found.' ||
+        message === 'One or more providers were not found.' ||
+        message === 'Provider IDs must be positive integers.'
+      ) {
+        return fail(400, { error: message });
+      }
+
+      return fail(500, {
+        error: `Failed to set inbox providers: ${message}`,
+      });
+    }
+
+    return { success: 'Inbox providers updated.' };
   },
   updateCell: async ({ request }) => {
     const form = await request.formData();
