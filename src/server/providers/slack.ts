@@ -69,9 +69,9 @@ function sanitizeSlackTimestamp(ts: string): string {
   return ts.replaceAll('.', '-');
 }
 
-function parseSlackTimestamp(ts: string): number {
+function parseSlackTimestampToMilliseconds(ts: string): number {
   const parsed = Number.parseFloat(ts);
-  return Number.isFinite(parsed) ? parsed : 0;
+  return Number.isFinite(parsed) ? parsed * 1000 : 0;
 }
 
 function slackAppRedirectURL(channelID: string, ts: string): string {
@@ -237,6 +237,7 @@ export class SlackProvider
           providerID: this.id.toString(),
           hasStar: false,
           content: match.text ?? '',
+          timestamp: parseSlackTimestampToMilliseconds(ts),
           ...(username ? { author: { username } } : {}),
         },
       });
@@ -247,7 +248,11 @@ export class SlackProvider
         id: grouped.id,
         sourceURL: grouped.sourceURL,
         messages: grouped.messages
-          .sort((a, b) => parseSlackTimestamp(a.ts) - parseSlackTimestamp(b.ts))
+          .sort(
+            (a, b) =>
+              parseSlackTimestampToMilliseconds(a.ts) -
+              parseSlackTimestampToMilliseconds(b.ts),
+          )
           .map((entry) => entry.message),
       }),
     );

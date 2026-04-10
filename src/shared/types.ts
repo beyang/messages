@@ -28,7 +28,42 @@ export interface Message {
   content: string;
   subject?: string;
   author?: Author;
-  timestamp?: string;
+  timestamp?: number;
+}
+
+const NUMERIC_TIMESTAMP_PATTERN = /^-?\d+(\.\d+)?$/;
+
+function normalizeTimestamp(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+
+  if (NUMERIC_TIMESTAMP_PATTERN.test(trimmed)) {
+    const numericTimestamp = Number.parseFloat(trimmed);
+    if (!Number.isFinite(numericTimestamp)) {
+      return undefined;
+    }
+
+    const unsigned = trimmed.startsWith('-') ? trimmed.slice(1) : trimmed;
+    const [secondsPart, subSecondPart] = unsigned.split('.');
+    if (subSecondPart || (secondsPart?.length ?? 0) <= 10) {
+      return numericTimestamp * 1000;
+    }
+
+    return numericTimestamp;
+  }
+
+  const parsedTimestamp = Date.parse(trimmed);
+  return Number.isNaN(parsedTimestamp) ? undefined : parsedTimestamp;
 }
 
 export const messageSchema: z.ZodType<Message> = z
@@ -41,7 +76,7 @@ export const messageSchema: z.ZodType<Message> = z
     content: z.string(),
     subject: z.unknown().optional(),
     author: authorSchema.optional(),
-    timestamp: z.string().optional(),
+    timestamp: z.unknown().optional(),
   })
   .transform((entry): Message => {
     const providerID =
@@ -67,8 +102,9 @@ export const messageSchema: z.ZodType<Message> = z
     if (entry.author) {
       message.author = entry.author;
     }
-    if (entry.timestamp) {
-      message.timestamp = entry.timestamp;
+    const normalizedTimestamp = normalizeTimestamp(entry.timestamp);
+    if (normalizedTimestamp !== undefined) {
+      message.timestamp = normalizedTimestamp;
     }
     return message;
   });

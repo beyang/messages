@@ -55,6 +55,45 @@ function clamp(index: number, length: number): number {
   return index;
 }
 
+function sortableTimestamp(timestamp: number | undefined): number {
+  return typeof timestamp === 'number' && Number.isFinite(timestamp)
+    ? timestamp
+    : Number.NEGATIVE_INFINITY;
+}
+
+function getLatestConvoMessage(convo: Convo): Message | null {
+  const fallbackLatestMessage =
+    convo.messages[convo.messages.length - 1] ?? null;
+  if (!fallbackLatestMessage) {
+    return null;
+  }
+
+  let latestMessage = fallbackLatestMessage;
+  let latestTimestamp = Number.NEGATIVE_INFINITY;
+
+  for (const message of convo.messages) {
+    const messageTimestamp = sortableTimestamp(message.timestamp);
+    if (messageTimestamp > latestTimestamp) {
+      latestTimestamp = messageTimestamp;
+      latestMessage = message;
+    }
+  }
+
+  return latestMessage;
+}
+
+function sortConvosByLatestMessageTimestamp(convos: Convo[]): Convo[] {
+  return [...convos].sort((a, b) => {
+    const latestB = sortableTimestamp(getLatestConvoMessage(b)?.timestamp);
+    const latestA = sortableTimestamp(getLatestConvoMessage(a)?.timestamp);
+    if (latestB !== latestA) {
+      return latestB - latestA;
+    }
+
+    return a.sourceURL.localeCompare(b.sourceURL);
+  });
+}
+
 function nextFocusPane(pane: FocusPane): FocusPane {
   const index = FOCUS_PANES.indexOf(pane);
   return FOCUS_PANES[(index + 1) % FOCUS_PANES.length] ?? 'inboxes';
@@ -235,8 +274,8 @@ function ConvoPreview({ convo }: { convo: Convo }) {
     convo.messages.length > 0 &&
     convo.messages.every((message) => message.isArchived === true);
   const convoStatusPrefix = `${hasStarredMessage ? '⭐ ' : ''}${allMessagesArchived ? '📦 ' : ''}`;
-  const lastMessage = convo.messages[convo.messages.length - 1];
-  if (!lastMessage) {
+  const latestMessage = getLatestConvoMessage(convo);
+  if (!latestMessage) {
     return (
       <Box flexDirection="column">
         <Text wrap="truncate">
@@ -250,17 +289,17 @@ function ConvoPreview({ convo }: { convo: Convo }) {
   }
 
   const authorName =
-    lastMessage.author?.displayName ?? lastMessage.author?.username;
+    latestMessage.author?.displayName ?? latestMessage.author?.username;
   const author = authorName ? sanitizeForTerminalText(authorName) : undefined;
-  const subject = lastMessage.subject
-    ? sanitizeForTerminalText(lastMessage.subject)
+  const subject = latestMessage.subject
+    ? sanitizeForTerminalText(latestMessage.subject)
     : undefined;
   const heading =
     author && subject
       ? `${author}, ${subject}`
       : (author ?? subject ?? sanitizeForTerminalText(convo.sourceURL));
   const headingWithStatus = `${convoStatusPrefix}${heading}`;
-  const preview = sanitizeForTerminalText(lastMessage.content)
+  const preview = sanitizeForTerminalText(latestMessage.content)
     .replace(/\n+/g, ' ')
     .trim();
 
@@ -460,7 +499,10 @@ function App() {
   const [isSubmittingReply, setIsSubmittingReply] = useState(false);
 
   const currentInbox = inboxes[selectedInboxIndex] ?? null;
-  const convos = currentInbox?.convos ?? [];
+  const convos = useMemo(
+    () => sortConvosByLatestMessageTimestamp(currentInbox?.convos ?? []),
+    [currentInbox],
+  );
   const currentConvo = convos[selectedConvoIndex] ?? null;
   const footerHeight = Math.min(FOOTER_HEIGHT, Math.max(3, terminalRows - 3));
   const mainHeight = Math.max(3, terminalRows - footerHeight);
@@ -479,8 +521,9 @@ function App() {
   const messageCount = currentConvoLayout.messages.length;
   const currentMessage =
     currentConvoLayout.messages[selectedMessageIndex] ?? null;
-  const latestConvoMessage =
-    currentConvo?.messages[currentConvo.messages.length - 1] ?? null;
+  const latestConvoMessage = currentConvo
+    ? getLatestConvoMessage(currentConvo)
+    : null;
   const openSourceTargetMessage =
     focusPane === 'convos'
       ? latestConvoMessage

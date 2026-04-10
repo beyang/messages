@@ -48,6 +48,7 @@ interface GmailMessageResponse {
   id: string;
   threadId: string;
   labelIds?: string[];
+  internalDate?: string;
   payload: GmailMessagePart;
 }
 
@@ -141,6 +142,15 @@ function getHeaderValue(
 
 function sanitizeMailHeaderValue(value: string): string {
   return value.replace(/[\r\n]+/g, ' ').trim();
+}
+
+function parseGmailInternalDate(value: string | undefined): number | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) ? parsed : undefined;
 }
 
 function parseMessageIDFromSourceURL(sourceURL: string): string {
@@ -306,6 +316,7 @@ export class GmailProvider
           messages: thread.messages.map((msg) => {
             const subject = getHeaderValue(msg.payload.headers, 'subject');
             const from = getHeaderValue(msg.payload.headers, 'from');
+            const timestamp = parseGmailInternalDate(msg.internalDate);
             return {
               id: msg.id,
               sourceURL: `${gmailInboxURLPrefix}${msg.id}`,
@@ -313,6 +324,7 @@ export class GmailProvider
               hasStar: msg.labelIds?.includes('STARRED') ?? false,
               isArchived: !(msg.labelIds?.includes('INBOX') ?? false),
               content: extractMessageContent(msg.payload),
+              ...(timestamp !== undefined ? { timestamp } : {}),
               ...(subject ? { subject } : {}),
               ...(from ? { author: parseFromHeader(from) } : {}),
             };

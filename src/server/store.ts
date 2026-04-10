@@ -497,6 +497,14 @@ export function mergeMessages(
       updates.hasStar = msg.hasStar;
     }
 
+    if (
+      typeof msg.timestamp === 'number' &&
+      Number.isFinite(msg.timestamp) &&
+      existingMessage.timestamp !== msg.timestamp
+    ) {
+      updates.timestamp = msg.timestamp;
+    }
+
     if (Object.keys(updates).length > 0) {
       merged[existingIndex] = {
         ...existingMessage,

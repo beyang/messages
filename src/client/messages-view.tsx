@@ -18,6 +18,41 @@ export interface ConvoMessageLayout {
   messageLineCounts: number[];
 }
 
+const MINUTE_IN_MILLISECONDS = 60 * 1000;
+const DAY_IN_MILLISECONDS = 24 * 60 * 60 * 1000;
+const LOCAL_TIMESTAMP_FORMATTER = new Intl.DateTimeFormat(undefined, {
+  weekday: 'short',
+  year: 'numeric',
+  month: 'short',
+  day: 'numeric',
+  hour: 'numeric',
+  minute: '2-digit',
+  timeZoneName: 'short',
+});
+
+function formatMessageTimestamp(
+  timestamp: number | undefined,
+  nowInMilliseconds: number,
+): string {
+  if (typeof timestamp !== 'number' || !Number.isFinite(timestamp)) {
+    return '';
+  }
+
+  const ageInMilliseconds = nowInMilliseconds - timestamp;
+  if (ageInMilliseconds >= 0 && ageInMilliseconds < DAY_IN_MILLISECONDS) {
+    const ageInMinutes = Math.floor(ageInMilliseconds / MINUTE_IN_MILLISECONDS);
+    const hours = Math.floor(ageInMinutes / 60);
+    const minutes = ageInMinutes % 60;
+    if (hours === 0) {
+      return `${minutes}m ago`;
+    }
+
+    return `${hours}h${minutes}m ago`;
+  }
+
+  return LOCAL_TIMESTAMP_FORMATTER.format(new Date(timestamp));
+}
+
 function textLength(text: string): number {
   return [...text].length;
 }
@@ -83,6 +118,7 @@ function buildMessageLines(
   message: Message,
   width: number,
   showSeparator: boolean,
+  nowInMilliseconds: number,
 ): RenderedLine[] {
   const safeWidth = Math.max(1, width);
   const starPrefix = message.hasStar ? '⭐ ' : '';
@@ -95,18 +131,20 @@ function buildMessageLines(
     : 'Unknown';
 
   const bodyText = mrkdwnToPlainText(message.content);
+  const timestampLabel = formatMessageTimestamp(
+    message.timestamp,
+    nowInMilliseconds,
+  );
 
   const lines: RenderedLine[] = [
     ...wrapTextLines(sourceURLLabel, safeWidth).map((text) => ({
       text,
       dimColor: true,
     })),
-    ...wrapTextLines(`Time: ${message.timestamp ?? ''}`, safeWidth).map(
-      (text) => ({
-        text,
-        dimColor: true,
-      }),
-    ),
+    ...wrapTextLines(`Time: ${timestampLabel}`, safeWidth).map((text) => ({
+      text,
+      dimColor: true,
+    })),
     ...wrapTextLines(`From: ${authorLabel}`, safeWidth).map((text) => ({
       text,
       bold: true,
@@ -148,12 +186,14 @@ export function buildConvoMessageLayout(
   const lines: RenderedLine[] = [];
   const messageLineStarts: number[] = [];
   const messageLineCounts: number[] = [];
+  const nowInMilliseconds = Date.now();
 
   messages.forEach((message, messageIndex) => {
     const messageLines = buildMessageLines(
       message,
       width,
       messageIndex < messages.length - 1,
+      nowInMilliseconds,
     );
     messageLineStarts.push(lines.length);
     messageLineCounts.push(messageLines.length);

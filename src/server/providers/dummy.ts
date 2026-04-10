@@ -23,6 +23,7 @@ export class DummyProvider
   ): Promise<FetchConvosResult> {
     const randomID = crypto.randomUUID();
     const providerID = this.id.toString();
+    const now = Date.now();
 
     return {
       convos: [
@@ -35,12 +36,14 @@ export class DummyProvider
               sourceURL: `https://dummy.example.com/messages/${providerID}-stable`,
               providerID,
               content: `Hello from dummy provider "${providerID}" - this message never changes.`,
+              timestamp: now - 60_000,
             },
             {
               id: randomID,
               sourceURL: `https://dummy.example.com/messages/${randomID}`,
               providerID,
               content: `New message from "${providerID}" at ${new Date().toISOString()}: ${crypto.randomUUID().slice(0, 8)}`,
+              timestamp: now,
             },
           ],
         },
