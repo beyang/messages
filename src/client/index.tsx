@@ -258,7 +258,7 @@ function App() {
   const paneBodyHeight = Math.max(0, mainHeight - PANE_CHROME_HEIGHT);
   const messagePaneContentWidth = Math.max(
     20,
-    Math.floor(terminalCols * 0.5) - 6,
+    Math.floor(terminalCols * 0.5) - 7,
   );
   const currentConvoLines = buildConvoMessageLines(
     currentConvo,
@@ -476,12 +476,14 @@ function App() {
           width="50%"
           height={mainHeight}
         >
-          <MessagesView
-            convo={currentConvo}
-            lines={currentConvoLines}
-            height={paneBodyHeight}
-            scrollOffset={messageScrollOffset}
-          />
+          <Box flexDirection="column" flexGrow={1} minHeight={0} paddingLeft={1}>
+            <MessagesView
+              convo={currentConvo}
+              lines={currentConvoLines}
+              height={paneBodyHeight}
+              scrollOffset={messageScrollOffset}
+            />
+          </Box>
         </Pane>
       </Box>
       <Footer

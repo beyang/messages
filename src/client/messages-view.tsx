@@ -44,17 +44,19 @@ function buildMessageLines(
   const bodyText = mrkdwnToPlainText(message.content);
 
   const lines: RenderedLine[] = [
-    ...wrapTextLines(`From: ${authorLabel}`, safeWidth).map((text) => ({
-      text,
-      bold: true,
-    })),
-    ...wrapTextLines(message.timestamp ?? '', safeWidth).map((text) => ({
-      text,
-      dimColor: true,
-    })),
     ...wrapTextLines(message.sourceURL, safeWidth).map((text) => ({
       text,
       dimColor: true,
+    })),
+    ...wrapTextLines(`Time: ${message.timestamp ?? ''}`, safeWidth).map(
+      (text) => ({
+      text,
+      dimColor: true,
+      }),
+    ),
+    ...wrapTextLines(`From: ${authorLabel}`, safeWidth).map((text) => ({
+      text,
+      bold: true,
     })),
     { text: '' },
     ...wrapTextLines(bodyText, safeWidth).map((text) => ({ text })),
@@ -75,8 +77,14 @@ export function buildConvoMessageLines(
     return [];
   }
 
-  return convo.messages.flatMap((message, index) =>
-    buildMessageLines(message, width, index < convo.messages.length - 1),
+  const reverseChronologicalMessages = [...convo.messages].reverse();
+
+  return reverseChronologicalMessages.flatMap((message, index) =>
+    buildMessageLines(
+      message,
+      width,
+      index < reverseChronologicalMessages.length - 1,
+    ),
   );
 }
 
