@@ -85,6 +85,9 @@ function buildMessageLines(
   showSeparator: boolean,
 ): RenderedLine[] {
   const safeWidth = Math.max(1, width);
+  const sourceURLLabel = message.hasStar
+    ? `★ ${message.sourceURL}`
+    : message.sourceURL;
   const authorLabel = message.author
     ? message.author.displayName
       ? `${sanitizeForTerminalText(message.author.displayName)} <${sanitizeForTerminalText(message.author.username)}>`
@@ -94,7 +97,7 @@ function buildMessageLines(
   const bodyText = mrkdwnToPlainText(message.content);
 
   const lines: RenderedLine[] = [
-    ...wrapTextLines(message.sourceURL, safeWidth).map((text) => ({
+    ...wrapTextLines(sourceURLLabel, safeWidth).map((text) => ({
       text,
       dimColor: true,
     })),

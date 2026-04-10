@@ -75,4 +75,26 @@ describe('buildConvoMessageLines', () => {
       layout.messageLineCounts[0] + layout.messageLineCounts[1],
     );
   });
+
+  it('renders a star before the source URL for starred messages', () => {
+    const convo: Convo = {
+      id: 'c-3',
+      sourceURL: 'convo-url',
+      messages: [
+        {
+          id: 'm-starred',
+          sourceURL: 'starred-url',
+          providerID: 'test-provider',
+          hasStar: true,
+          content: 'message body',
+          author: { username: 'star-user' },
+          timestamp: 't3',
+        },
+      ],
+    };
+
+    const lines = buildConvoMessageLines(convo, 80);
+
+    expect(lines[0]?.text).toBe('★ starred-url');
+  });
 });
