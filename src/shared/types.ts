@@ -257,6 +257,11 @@ export interface Provider<
     archived: boolean,
   ): Promise<void>;
   reply(identity: I, messageSourceURL: string, content: string): Promise<void>;
+  replyAll(
+    identity: I,
+    messageSourceURL: string,
+    content: string,
+  ): Promise<void>;
   authInitURL?(identity: I, baseURL: string): string;
   handleAuthCallback?(secret: string): void;
 }

@@ -166,6 +166,127 @@ function getSanitizedHeaderValue(
   return sanitized.length > 0 ? sanitized : undefined;
 }
 
+function extractEmailAddresses(headerValue: string | undefined): string[] {
+  if (!headerValue) {
+    return [];
+  }
+
+  const sanitized = sanitizeMailHeaderValue(headerValue);
+  return sanitized.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi) ?? [];
+}
+
+function normalizeEmailAddress(value: string | undefined): string | undefined {
+  const firstAddress = extractEmailAddresses(value)[0];
+  return firstAddress ? firstAddress.toLowerCase() : undefined;
+}
+
+function appendUniqueAddresses(
+  headerValue: string | undefined,
+  target: string[],
+  seen: Set<string>,
+  excluded: Set<string>,
+): void {
+  for (const address of extractEmailAddresses(headerValue)) {
+    const normalized = address.toLowerCase();
+    if (seen.has(normalized) || excluded.has(normalized)) {
+      continue;
+    }
+
+    seen.add(normalized);
+    target.push(address);
+  }
+}
+
+export interface GmailReplyHeaderValues {
+  to: string;
+  cc?: string;
+  subject: string;
+  inReplyTo?: string;
+}
+
+export function buildReplyHeaderValues(
+  headers: GmailHeader[] | undefined,
+  identityEmail: string | undefined,
+  includeAllRecipients: boolean,
+  messageID: string,
+): GmailReplyHeaderValues {
+  const toHeaderRaw =
+    getHeaderValue(headers, 'Reply-To') ?? getHeaderValue(headers, 'From');
+
+  if (!toHeaderRaw) {
+    throw new Error(
+      `Cannot reply to Gmail message "${messageID}": missing From/Reply-To header.`,
+    );
+  }
+
+  let toHeader = sanitizeMailHeaderValue(toHeaderRaw);
+  if (!toHeader) {
+    throw new Error(
+      `Cannot reply to Gmail message "${messageID}": invalid From/Reply-To header.`,
+    );
+  }
+
+  let ccHeader: string | undefined;
+
+  if (includeAllRecipients) {
+    const selfEmail = normalizeEmailAddress(identityEmail);
+    const seenAddresses = new Set<string>();
+    const excludedAddresses = new Set<string>(selfEmail ? [selfEmail] : []);
+    const toRecipients: string[] = [];
+
+    appendUniqueAddresses(
+      toHeaderRaw,
+      toRecipients,
+      seenAddresses,
+      excludedAddresses,
+    );
+    appendUniqueAddresses(
+      getHeaderValue(headers, 'To'),
+      toRecipients,
+      seenAddresses,
+      excludedAddresses,
+    );
+
+    if (toRecipients.length > 0) {
+      toHeader = toRecipients.join(', ');
+    }
+
+    const ccRecipients: string[] = [];
+    appendUniqueAddresses(
+      getHeaderValue(headers, 'Cc'),
+      ccRecipients,
+      seenAddresses,
+      excludedAddresses,
+    );
+
+    if (ccRecipients.length > 0) {
+      ccHeader = ccRecipients.join(', ');
+    }
+  }
+
+  const originalSubject = sanitizeMailHeaderValue(
+    getHeaderValue(headers, 'Subject') ?? '',
+  );
+  const subject =
+    originalSubject.length > 0
+      ? /^re:/i.test(originalSubject)
+        ? originalSubject
+        : `Re: ${originalSubject}`
+      : 'Re:';
+
+  const inReplyToRaw = sanitizeMailHeaderValue(
+    getHeaderValue(headers, 'Message-ID') ?? '',
+  );
+  const inReplyTo = inReplyToRaw.length > 0 ? inReplyToRaw : undefined;
+
+  return {
+    to: toHeader,
+    ...(ccHeader ? { cc: ccHeader } : {}),
+    subject,
+    ...(inReplyTo ? { inReplyTo } : {}),
+  };
+}
+
 function normalizeAuthenticatedDomain(
   value: string | undefined,
 ): string | undefined {
@@ -515,10 +636,11 @@ export class GmailProvider
     );
   }
 
-  async reply(
-    _identity: GmailProviderIdentity,
+  private async sendReply(
+    identity: GmailProviderIdentity,
     messageSourceURL: string,
     content: string,
+    includeAllRecipients: boolean,
   ): Promise<void> {
     const refreshToken = getProviderSecretsValue(this.id).trim();
     if (!refreshToken) {
@@ -535,44 +657,25 @@ export class GmailProvider
     const accessToken = await this.getAccessToken(refreshToken);
     const originalMessage = await this.gmailGet<GmailMessageResponse>(
       accessToken,
-      `messages/${encodeURIComponent(messageID)}?format=metadata&metadataHeaders=Reply-To&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Message-ID`,
+      `messages/${encodeURIComponent(messageID)}?format=metadata&metadataHeaders=Reply-To&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Cc&metadataHeaders=Subject&metadataHeaders=Message-ID`,
     );
 
-    const toHeaderRaw =
-      getHeaderValue(originalMessage.payload.headers, 'Reply-To') ??
-      getHeaderValue(originalMessage.payload.headers, 'From');
-
-    if (!toHeaderRaw) {
-      throw new Error(
-        `Cannot reply to Gmail message "${messageID}": missing From/Reply-To header.`,
-      );
-    }
-
-    const toHeader = sanitizeMailHeaderValue(toHeaderRaw);
-    if (!toHeader) {
-      throw new Error(
-        `Cannot reply to Gmail message "${messageID}": invalid From/Reply-To header.`,
-      );
-    }
-
-    const originalSubject = sanitizeMailHeaderValue(
-      getHeaderValue(originalMessage.payload.headers, 'Subject') ?? '',
-    );
-    const replySubject =
-      originalSubject.length > 0
-        ? /^re:/i.test(originalSubject)
-          ? originalSubject
-          : `Re: ${originalSubject}`
-        : 'Re:';
-    const inReplyTo = sanitizeMailHeaderValue(
-      getHeaderValue(originalMessage.payload.headers, 'Message-ID') ?? '',
+    const replyHeaders = buildReplyHeaderValues(
+      originalMessage.payload.headers,
+      identity.email,
+      includeAllRecipients,
+      messageID,
     );
 
     const headerLines = [
-      `To: ${toHeader}`,
-      `Subject: ${replySubject}`,
-      ...(inReplyTo
-        ? [`In-Reply-To: ${inReplyTo}`, `References: ${inReplyTo}`]
+      `To: ${replyHeaders.to}`,
+      ...(replyHeaders.cc ? [`Cc: ${replyHeaders.cc}`] : []),
+      `Subject: ${replyHeaders.subject}`,
+      ...(replyHeaders.inReplyTo
+        ? [
+            `In-Reply-To: ${replyHeaders.inReplyTo}`,
+            `References: ${replyHeaders.inReplyTo}`,
+          ]
         : []),
       'Content-Type: text/plain; charset="UTF-8"',
       'MIME-Version: 1.0',
@@ -592,6 +695,22 @@ export class GmailProvider
       threadId: originalMessage.threadId,
       raw,
     });
+  }
+
+  async reply(
+    identity: GmailProviderIdentity,
+    messageSourceURL: string,
+    content: string,
+  ): Promise<void> {
+    await this.sendReply(identity, messageSourceURL, content, false);
+  }
+
+  async replyAll(
+    identity: GmailProviderIdentity,
+    messageSourceURL: string,
+    content: string,
+  ): Promise<void> {
+    await this.sendReply(identity, messageSourceURL, content, true);
   }
 }
 

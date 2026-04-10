@@ -49,3 +49,12 @@ export async function replyWithProvider(
   const provider = instantiateProvider(config);
   await provider.reply(config.identity, messageSourceURL, content);
 }
+
+export async function replyAllWithProvider(
+  config: ProviderConfig,
+  messageSourceURL: string,
+  content: string,
+): Promise<void> {
+  const provider = instantiateProvider(config);
+  await provider.replyAll(config.identity, messageSourceURL, content);
+}

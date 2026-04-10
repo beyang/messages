@@ -55,6 +55,7 @@ TUI controls:
 - `tab`: switch between inbox and thread lists
 - `↑/↓`: move selection
 - `r`: reply to selected thread
+- `a`: reply all to selected thread
 - `R`: refresh from server
 - `q`: quit
 

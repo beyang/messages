@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  buildReplyHeaderValues,
   extractMailedByFromAuthenticationResults,
   extractSignedByFromAuthenticationResults,
 } from './gmail.js';
@@ -82,5 +83,70 @@ describe('extractSignedByFromAuthenticationResults', () => {
     ];
 
     expect(extractSignedByFromAuthenticationResults(headers)).toBeUndefined();
+  });
+});
+
+describe('buildReplyHeaderValues', () => {
+  it('computes reply-all To/Cc headers by merging recipients, deduping, and excluding self', () => {
+    const headers = [
+      { name: 'Reply-To', value: 'Support Team <reply@example.com>' },
+      { name: 'From', value: 'Original Sender <sender@example.com>' },
+      {
+        name: 'To',
+        value:
+          'Me <me@example.com>, Teammate <teammate@example.com>, reply@example.com',
+      },
+      {
+        name: 'Cc',
+        value: 'cc@example.com, teammate@example.com, ME@example.com',
+      },
+      { name: 'Subject', value: 'Status Update' },
+      { name: 'Message-ID', value: '<message-123@example.com>' },
+    ];
+
+    expect(
+      buildReplyHeaderValues(headers, 'me@example.com', true, 'message-123'),
+    ).toEqual({
+      to: 'reply@example.com, teammate@example.com',
+      cc: 'cc@example.com',
+      subject: 'Re: Status Update',
+      inReplyTo: '<message-123@example.com>',
+    });
+  });
+
+  it('keeps single-recipient Reply-To as-is for regular reply and ignores original To/Cc', () => {
+    const headers = [
+      { name: 'Reply-To', value: 'Support Team <reply@example.com>' },
+      {
+        name: 'To',
+        value: 'Me <me@example.com>, Teammate <teammate@example.com>',
+      },
+      { name: 'Cc', value: 'cc@example.com' },
+      { name: 'Subject', value: 'Re: Existing Subject' },
+      { name: 'Message-ID', value: '<message-456@example.com>' },
+    ];
+
+    expect(
+      buildReplyHeaderValues(headers, 'me@example.com', false, 'message-456'),
+    ).toEqual({
+      to: 'Support Team <reply@example.com>',
+      subject: 'Re: Existing Subject',
+      inReplyTo: '<message-456@example.com>',
+    });
+  });
+
+  it('falls back to sanitized raw recipient and default subject when no parseable addresses are present', () => {
+    const headers = [
+      { name: 'Reply-To', value: 'undisclosed-recipients:;' },
+      { name: 'Subject', value: '' },
+      { name: 'Message-ID', value: '' },
+    ];
+
+    expect(
+      buildReplyHeaderValues(headers, 'me@example.com', true, 'message-789'),
+    ).toEqual({
+      to: 'undisclosed-recipients:;',
+      subject: 'Re:',
+    });
   });
 });

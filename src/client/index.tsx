@@ -13,6 +13,7 @@ const serverURL = process.env.MESSAGES_SERVER_URL ?? 'http://localhost:3000';
 const api = new MessagesApi(serverURL);
 
 type FocusPane = 'inboxes' | 'convos' | 'messages';
+type ReplyMode = 'reply' | 'replyAll';
 
 const FOCUS_PANES: FocusPane[] = ['inboxes', 'convos', 'messages'];
 const FALLBACK_TERMINAL_ROWS = 24;
@@ -210,12 +211,14 @@ function getReplyBoxHeight(availableHeight: number): number {
 
 function ReplyComposer({
   content,
+  mode,
   width,
   height,
   isFocused,
   isSubmitting,
 }: {
   content: string;
+  mode: ReplyMode;
   width: number;
   height: number;
   isFocused: boolean;
@@ -228,6 +231,10 @@ function ReplyComposer({
   const bodyLineCount = Math.max(1, height - 2);
   const wrappedLines = wrapReplyInputLines(content, Math.max(1, width - 2));
   const visibleLines = wrappedLines.slice(-bodyLineCount);
+  const composerLabel = mode === 'replyAll' ? 'Reply All' : 'Reply';
+  const composerVerb = mode === 'replyAll' ? 'reply-all' : 'reply';
+  const submittingLabel =
+    mode === 'replyAll' ? 'Replying all...' : 'Replying...';
   const renderedVisibleLines: React.ReactNode[] = [];
   const lineOccurrences = new Map<string, number>();
 
@@ -255,11 +262,11 @@ function ReplyComposer({
       overflowY="hidden"
     >
       <Text bold color={isFocused ? 'cyan' : 'white'} wrap="truncate-end">
-        {isSubmitting ? 'Replying...' : 'Reply'}
+        {isSubmitting ? submittingLabel : composerLabel}
       </Text>
       {content.length === 0 ? (
         <Text dimColor wrap="truncate-end">
-          Type reply. Enter = newline. Alt+Enter = submit. Esc = discard.
+          {`Type ${composerVerb}. Enter = newline. Alt+Enter = submit. Esc = discard.`}
         </Text>
       ) : (
         renderedVisibleLines
@@ -434,6 +441,7 @@ function App() {
   );
   const [status, setStatus] = useState(`Connecting to ${serverURL}...`);
   const [isReplying, setIsReplying] = useState(false);
+  const [replyMode, setReplyMode] = useState<ReplyMode>('reply');
   const [replyDraft, setReplyDraft] = useState('');
   const [isSubmittingReply, setIsSubmittingReply] = useState(false);
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
@@ -502,6 +510,7 @@ function App() {
       setSelectedMessageIndex(0);
       setMessageScrollOffset(0);
       setIsReplying(false);
+      setReplyMode('reply');
       setReplyDraft('');
       setIsSubmittingReply(false);
       return;
@@ -510,6 +519,7 @@ function App() {
     setSelectedMessageIndex(0);
     setMessageScrollOffset(0);
     setIsReplying(false);
+    setReplyMode('reply');
     setReplyDraft('');
     setIsSubmittingReply(false);
   }, [currentConvo]);
@@ -521,6 +531,7 @@ function App() {
   useEffect(() => {
     if (!currentMessage && isReplying) {
       setIsReplying(false);
+      setReplyMode('reply');
       setReplyDraft('');
       setIsSubmittingReply(false);
     }
@@ -590,10 +601,13 @@ function App() {
     }
 
     if (isReplying) {
+      const replyModeLabel = replyMode === 'replyAll' ? 'reply-all' : 'reply';
+
       if (key.escape && !isSubmittingReply) {
         setIsReplying(false);
+        setReplyMode('reply');
         setReplyDraft('');
-        setStatus('Discarded draft reply.');
+        setStatus(`Discarded draft ${replyModeLabel}.`);
         return;
       }
 
@@ -616,19 +630,30 @@ function App() {
 
         const replyTarget = currentMessage;
         const replyContent = replyDraft;
+        const replyActionLabel =
+          replyMode === 'replyAll' ? 'reply-all' : 'reply';
         setIsSubmittingReply(true);
-        setStatus(`Sending reply to message "${replyTarget.id}"...`);
+        setStatus(
+          `Sending ${replyActionLabel} to message "${replyTarget.id}"...`,
+        );
 
         void (async () => {
           try {
-            await api.replyToMessage(replyTarget.sourceURL, replyContent);
+            if (replyMode === 'replyAll') {
+              await api.replyAllToMessage(replyTarget.sourceURL, replyContent);
+            } else {
+              await api.replyToMessage(replyTarget.sourceURL, replyContent);
+            }
             setIsReplying(false);
+            setReplyMode('reply');
             setReplyDraft('');
-            await refreshData(`Sent reply to message "${replyTarget.id}".`);
+            await refreshData(
+              `Sent ${replyActionLabel} to message "${replyTarget.id}".`,
+            );
           } catch (error) {
             const detail =
               error instanceof Error ? error.message : String(error);
-            setStatus(`Reply failed: ${detail}`);
+            setStatus(`${replyActionLabel} failed: ${detail}`);
           } finally {
             setIsSubmittingReply(false);
           }
@@ -781,11 +806,29 @@ function App() {
       }
 
       setFocusPane('messages');
+      setReplyMode('reply');
       setReplyDraft('');
       setIsSubmittingReply(false);
       setIsReplying(true);
       setStatus(
         `Composing reply to message "${currentMessage.id}". Alt+Enter sends, Esc discards.`,
+      );
+      return;
+    }
+
+    if (input === 'a') {
+      if (!currentMessage) {
+        setStatus('No message selected.');
+        return;
+      }
+
+      setFocusPane('messages');
+      setReplyMode('replyAll');
+      setReplyDraft('');
+      setIsSubmittingReply(false);
+      setIsReplying(true);
+      setStatus(
+        `Composing reply-all to message "${currentMessage.id}". Alt+Enter sends, Esc discards.`,
       );
       return;
     }
@@ -910,6 +953,7 @@ function App() {
             {isReplying && replyBoxHeight > 0 ? (
               <ReplyComposer
                 content={replyDraft}
+                mode={replyMode}
                 width={messagePaneContentWidth + MESSAGE_LINE_PREFIX_WIDTH}
                 height={replyBoxHeight}
                 isFocused={focusPane === 'messages'}

@@ -287,6 +287,14 @@ export class SlackProvider
   ): Promise<void> {
     throw new Error('Slack does not currently support replying via API.');
   }
+
+  async replyAll(
+    _identity: SlackProviderIdentity,
+    _messageSourceURL: string,
+    _content: string,
+  ): Promise<void> {
+    throw new Error('Slack does not currently support reply-all via API.');
+  }
 }
 
 export async function exchangeSlackCode(

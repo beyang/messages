@@ -10,6 +10,7 @@ const HELP_MODAL_SHORTCUTS = [
   'f fetch providers for selected inbox',
   'c clear selected inbox',
   'r compose reply',
+  'a compose reply all',
   'alt+enter send reply draft',
   'esc discard reply draft',
   's toggle star on selected message',
