@@ -24,6 +24,7 @@ export interface Message {
   sourceURL: string;
   providerID: string;
   hasStar?: boolean;
+  isArchived?: boolean;
   content: string;
   subject?: string;
   author?: Author;
@@ -36,6 +37,7 @@ export const messageSchema: z.ZodType<Message> = z
     sourceURL: z.string(),
     providerID: z.unknown().optional(),
     hasStar: z.unknown().optional(),
+    isArchived: z.unknown().optional(),
     content: z.string(),
     subject: z.unknown().optional(),
     author: authorSchema.optional(),
@@ -55,6 +57,9 @@ export const messageSchema: z.ZodType<Message> = z
     };
     if (typeof entry.hasStar === 'boolean') {
       message.hasStar = entry.hasStar;
+    }
+    if (typeof entry.isArchived === 'boolean') {
+      message.isArchived = entry.isArchived;
     }
     if (typeof entry.subject === 'string') {
       message.subject = entry.subject;
@@ -204,6 +209,11 @@ export interface Provider<
     identity: I,
     messageSourceURL: string,
     starred: boolean,
+  ): Promise<void>;
+  setArchived(
+    identity: I,
+    messageSourceURL: string,
+    archived: boolean,
   ): Promise<void>;
   authInitURL?(identity: I, baseURL: string): string;
   handleAuthCallback?(secret: string): void;

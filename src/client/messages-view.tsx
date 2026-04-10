@@ -85,9 +85,9 @@ function buildMessageLines(
   showSeparator: boolean,
 ): RenderedLine[] {
   const safeWidth = Math.max(1, width);
-  const sourceURLLabel = message.hasStar
-    ? `★ ${message.sourceURL}`
-    : message.sourceURL;
+  const starPrefix = message.hasStar ? '⭐ ' : '';
+  const archivePrefix = message.isArchived ? '📦 ' : '';
+  const sourceURLLabel = `${starPrefix}${archivePrefix}${message.sourceURL}`;
   const authorLabel = message.author
     ? message.author.displayName
       ? `${sanitizeForTerminalText(message.author.displayName)} <${sanitizeForTerminalText(message.author.username)}>`

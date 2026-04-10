@@ -294,6 +294,7 @@ export class GmailProvider
               sourceURL: `${gmailInboxURLPrefix}${msg.id}`,
               providerID: this.id.toString(),
               hasStar: msg.labelIds?.includes('STARRED') ?? false,
+              isArchived: !(msg.labelIds?.includes('INBOX') ?? false),
               content: extractMessageContent(msg.payload),
               ...(subject ? { subject } : {}),
               ...(from ? { author: parseFromHeader(from) } : {}),
@@ -327,6 +328,37 @@ export class GmailProvider
       {
         addLabelIds: starred ? ['STARRED'] : [],
         removeLabelIds: starred ? [] : ['STARRED'],
+      },
+    );
+  }
+
+  async setArchived(
+    _identity: GmailProviderIdentity,
+    messageSourceURL: string,
+    archived: boolean,
+  ): Promise<void> {
+    const refreshToken = getProviderSecretsValue(this.id).trim();
+    if (!refreshToken) {
+      throw new Error(
+        `Missing Gmail refresh token for provider "${this.id}". Re-authorize this provider.`,
+      );
+    }
+
+    const messageID = parseMessageIDFromSourceURL(messageSourceURL);
+    const accessToken = await this.getAccessToken(refreshToken);
+
+    // Get the message to find its threadId, since archiving is a thread-level operation
+    const message = await this.gmailGet<GmailMessageResponse>(
+      accessToken,
+      `messages/${encodeURIComponent(messageID)}?format=minimal`,
+    );
+
+    await this.gmailPost(
+      `threads/${encodeURIComponent(message.threadId)}/modify`,
+      accessToken,
+      {
+        addLabelIds: archived ? [] : ['INBOX'],
+        removeLabelIds: archived ? ['INBOX'] : [],
       },
     );
   }

@@ -266,6 +266,14 @@ export class SlackProvider
       'Slack does not currently support toggling saved/Later state via API.',
     );
   }
+
+  async setArchived(
+    _identity: SlackProviderIdentity,
+    _messageSourceURL: string,
+    _archived: boolean,
+  ): Promise<void> {
+    throw new Error('Slack does not currently support archiving via API.');
+  }
 }
 
 export async function exchangeSlackCode(

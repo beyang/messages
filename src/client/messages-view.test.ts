@@ -95,6 +95,6 @@ describe('buildConvoMessageLines', () => {
 
     const lines = buildConvoMessageLines(convo, 80);
 
-    expect(lines[0]?.text).toBe('★ starred-url');
+    expect(lines[0]?.text).toBe('⭐ starred-url');
   });
 });

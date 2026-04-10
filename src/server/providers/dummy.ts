@@ -53,4 +53,10 @@ export class DummyProvider
     _messageSourceURL: string,
     _starred: boolean,
   ): Promise<void> {}
+
+  async setArchived(
+    _identity: ProviderIdentity,
+    _messageSourceURL: string,
+    _archived: boolean,
+  ): Promise<void> {}
 }
