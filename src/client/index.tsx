@@ -18,6 +18,8 @@ const FALLBACK_TERMINAL_COLS = 80;
 const FOOTER_HEIGHT = 5;
 const PANE_CHROME_HEIGHT = 3;
 const MESSAGE_LINE_PREFIX_WIDTH = 2;
+const REPLY_BOX_MIN_HEIGHT = 4;
+const REPLY_BOX_MAX_HEIGHT = 7;
 
 function openSourceURL(sourceURL: string): Promise<void> {
   let command: string;
@@ -122,6 +124,107 @@ function getMessageScrollOffsetForSelection(
   }
 
   return clampedPrevious;
+}
+
+function wrapReplyInputLines(text: string, width: number): string[] {
+  const safeWidth = Math.max(1, width);
+
+  return sanitizeForTerminalText(text)
+    .split('\n')
+    .flatMap((line) => {
+      const chars = [...line];
+      if (chars.length === 0) {
+        return [''];
+      }
+
+      const wrapped: string[] = [];
+      for (let start = 0; start < chars.length; start += safeWidth) {
+        wrapped.push(chars.slice(start, start + safeWidth).join(''));
+      }
+
+      return wrapped;
+    });
+}
+
+function trimLastCharacter(text: string): string {
+  const chars = [...text];
+  chars.pop();
+  return chars.join('');
+}
+
+function getReplyBoxHeight(availableHeight: number): number {
+  if (availableHeight <= 1) {
+    return 0;
+  }
+
+  const preferredHeight = Math.max(
+    REPLY_BOX_MIN_HEIGHT,
+    Math.floor(availableHeight * 0.35),
+  );
+  return Math.min(
+    REPLY_BOX_MAX_HEIGHT,
+    Math.max(1, Math.min(preferredHeight, availableHeight - 1)),
+  );
+}
+
+function ReplyComposer({
+  content,
+  width,
+  height,
+  isFocused,
+  isSubmitting,
+}: {
+  content: string;
+  width: number;
+  height: number;
+  isFocused: boolean;
+  isSubmitting: boolean;
+}) {
+  if (height <= 0) {
+    return null;
+  }
+
+  const bodyLineCount = Math.max(1, height - 2);
+  const wrappedLines = wrapReplyInputLines(content, Math.max(1, width - 2));
+  const visibleLines = wrappedLines.slice(-bodyLineCount);
+  const renderedVisibleLines: React.ReactNode[] = [];
+  const lineOccurrences = new Map<string, number>();
+
+  for (const line of visibleLines) {
+    const linePosition = renderedVisibleLines.length;
+    const isLastLine = linePosition === visibleLines.length - 1;
+    const lineWithCursor = isLastLine ? `${line}|` : line;
+    const occurrence = lineOccurrences.get(line) ?? 0;
+    lineOccurrences.set(line, occurrence + 1);
+
+    renderedVisibleLines.push(
+      <Text key={`reply-line-${line}-${occurrence}`} wrap="truncate-end">
+        {lineWithCursor.length > 0 ? lineWithCursor : ' '}
+      </Text>,
+    );
+  }
+
+  return (
+    <Box
+      flexDirection="column"
+      borderStyle="single"
+      borderColor={isFocused ? 'cyan' : 'white'}
+      height={height}
+      paddingX={1}
+      overflowY="hidden"
+    >
+      <Text bold color={isFocused ? 'cyan' : 'white'} wrap="truncate-end">
+        {isSubmitting ? 'Replying...' : 'Reply'}
+      </Text>
+      {content.length === 0 ? (
+        <Text dimColor wrap="truncate-end">
+          Type reply. Enter = newline. Alt+Enter = submit. Esc = discard.
+        </Text>
+      ) : (
+        renderedVisibleLines
+      )}
+    </Box>
+  );
 }
 
 function ConvoPreview({ convo }: { convo: Convo }) {
@@ -296,6 +399,8 @@ function Footer({
     'R refresh',
     'f fetch',
     'c clear inbox',
+    'r compose reply',
+    'alt+enter send reply',
     's toggle star',
     'e toggle archive',
   ];
@@ -350,6 +455,9 @@ function App() {
     stdout.columns ?? FALLBACK_TERMINAL_COLS,
   );
   const [status, setStatus] = useState(`Connecting to ${serverURL}...`);
+  const [isReplying, setIsReplying] = useState(false);
+  const [replyDraft, setReplyDraft] = useState('');
+  const [isSubmittingReply, setIsSubmittingReply] = useState(false);
 
   const currentInbox = inboxes[selectedInboxIndex] ?? null;
   const convos = currentInbox?.convos ?? [];
@@ -357,6 +465,8 @@ function App() {
   const footerHeight = Math.min(FOOTER_HEIGHT, Math.max(3, terminalRows - 3));
   const mainHeight = Math.max(3, terminalRows - footerHeight);
   const paneBodyHeight = Math.max(0, mainHeight - PANE_CHROME_HEIGHT);
+  const replyBoxHeight = isReplying ? getReplyBoxHeight(paneBodyHeight) : 0;
+  const messageListHeight = Math.max(0, paneBodyHeight - replyBoxHeight);
   const messagePaneContentWidth = Math.max(
     20,
     Math.floor(terminalCols * 0.5) - 7 - MESSAGE_LINE_PREFIX_WIDTH,
@@ -376,9 +486,14 @@ function App() {
       ? latestConvoMessage
       : (currentMessage ?? latestConvoMessage);
   const canOpenSourceURL = !!openSourceTargetMessage;
+  const selectedMessageTopLine =
+    currentConvoLayout.messageLineStarts[selectedMessageIndex] ?? 0;
+  const messageViewScrollOffset = isReplying
+    ? selectedMessageTopLine
+    : messageScrollOffset;
   const maxMessageScrollOffset = Math.max(
     0,
-    currentConvoLines.length - paneBodyHeight,
+    currentConvoLines.length - messageListHeight,
   );
 
   useEffect(() => {
@@ -403,16 +518,30 @@ function App() {
     if (!currentConvo) {
       setSelectedMessageIndex(0);
       setMessageScrollOffset(0);
+      setIsReplying(false);
+      setReplyDraft('');
+      setIsSubmittingReply(false);
       return;
     }
 
     setSelectedMessageIndex(0);
     setMessageScrollOffset(0);
+    setIsReplying(false);
+    setReplyDraft('');
+    setIsSubmittingReply(false);
   }, [currentConvo]);
 
   useEffect(() => {
     setSelectedMessageIndex((prev) => clamp(prev, messageCount));
   }, [messageCount]);
+
+  useEffect(() => {
+    if (!currentMessage && isReplying) {
+      setIsReplying(false);
+      setReplyDraft('');
+      setIsSubmittingReply(false);
+    }
+  }, [currentMessage, isReplying]);
 
   useEffect(() => {
     setMessageScrollOffset((prev) =>
@@ -421,7 +550,7 @@ function App() {
         currentConvoLayout.messageLineStarts,
         currentConvoLayout.messageLineCounts,
         prev,
-        paneBodyHeight,
+        messageListHeight,
         maxMessageScrollOffset,
       ),
     );
@@ -429,7 +558,7 @@ function App() {
     selectedMessageIndex,
     currentConvoLayout.messageLineStarts,
     currentConvoLayout.messageLineCounts,
-    paneBodyHeight,
+    messageListHeight,
     maxMessageScrollOffset,
   ]);
 
@@ -460,7 +589,95 @@ function App() {
   ));
 
   useInput((input, key) => {
-    if (input === 'q' || (key.ctrl && input === 'c')) {
+    if (key.ctrl && input === 'c') {
+      exit();
+      return;
+    }
+
+    if (isReplying) {
+      if (key.escape && !isSubmittingReply) {
+        setIsReplying(false);
+        setReplyDraft('');
+        setStatus('Discarded draft reply.');
+        return;
+      }
+
+      if (isSubmittingReply) {
+        return;
+      }
+
+      if (key.return && key.meta) {
+        if (!currentMessage) {
+          setIsReplying(false);
+          setReplyDraft('');
+          setStatus('No message selected.');
+          return;
+        }
+
+        if (!replyDraft.trim()) {
+          setStatus('Reply cannot be empty.');
+          return;
+        }
+
+        const replyTarget = currentMessage;
+        const replyContent = replyDraft;
+        setIsSubmittingReply(true);
+        setStatus(`Sending reply to message "${replyTarget.id}"...`);
+
+        void (async () => {
+          try {
+            await api.replyToMessage(replyTarget.sourceURL, replyContent);
+            setIsReplying(false);
+            setReplyDraft('');
+            await refreshData(`Sent reply to message "${replyTarget.id}".`);
+          } catch (error) {
+            const detail =
+              error instanceof Error ? error.message : String(error);
+            setStatus(`Reply failed: ${detail}`);
+          } finally {
+            setIsSubmittingReply(false);
+          }
+        })();
+        return;
+      }
+
+      if (key.return) {
+        setReplyDraft((prev) => `${prev}\n`);
+        return;
+      }
+
+      if (key.backspace || key.delete) {
+        setReplyDraft((prev) => trimLastCharacter(prev));
+        return;
+      }
+
+      if (key.tab) {
+        setReplyDraft((prev) => `${prev}\t`);
+        return;
+      }
+
+      if (
+        key.upArrow ||
+        key.downArrow ||
+        key.leftArrow ||
+        key.rightArrow ||
+        key.pageUp ||
+        key.pageDown ||
+        key.home ||
+        key.end ||
+        key.ctrl ||
+        key.meta
+      ) {
+        return;
+      }
+
+      if (input.length > 0) {
+        setReplyDraft((prev) => `${prev}${input}`);
+      }
+      return;
+    }
+
+    if (input === 'q') {
       exit();
       return;
     }
@@ -559,6 +776,22 @@ function App() {
           setStatus(`Clear failed: ${detail}`);
         }
       })();
+      return;
+    }
+
+    if (input === 'r') {
+      if (!currentMessage) {
+        setStatus('No message selected.');
+        return;
+      }
+
+      setFocusPane('messages');
+      setReplyDraft('');
+      setIsSubmittingReply(false);
+      setIsReplying(true);
+      setStatus(
+        `Composing reply to message "${currentMessage.id}". Alt+Enter sends, Esc discards.`,
+      );
       return;
     }
 
@@ -679,13 +912,23 @@ function App() {
             minHeight={0}
             paddingLeft={1}
           >
+            {isReplying && replyBoxHeight > 0 ? (
+              <ReplyComposer
+                content={replyDraft}
+                width={messagePaneContentWidth + MESSAGE_LINE_PREFIX_WIDTH}
+                height={replyBoxHeight}
+                isFocused={focusPane === 'messages'}
+                isSubmitting={isSubmittingReply}
+              />
+            ) : null}
             <MessagesView
               convo={currentConvo}
               lines={currentConvoLines}
-              height={paneBodyHeight}
-              scrollOffset={messageScrollOffset}
+              height={messageListHeight}
+              scrollOffset={messageViewScrollOffset}
               selectedMessageIndex={selectedMessageIndex}
               isFocused={focusPane === 'messages'}
+              allowBottomPadding={isReplying}
             />
           </Box>
         </Pane>

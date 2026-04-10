@@ -176,6 +176,7 @@ export function MessagesView({
   scrollOffset,
   selectedMessageIndex,
   isFocused,
+  allowBottomPadding = false,
 }: {
   convo: Convo | null;
   lines: RenderedLine[];
@@ -183,6 +184,7 @@ export function MessagesView({
   scrollOffset: number;
   selectedMessageIndex: number;
   isFocused: boolean;
+  allowBottomPadding?: boolean;
 }) {
   const safeHeight = Math.max(0, height);
 
@@ -197,7 +199,11 @@ export function MessagesView({
       : lines;
 
   const maxOffset = Math.max(0, contentLines.length - safeHeight);
-  const safeScrollOffset = Math.min(Math.max(0, scrollOffset), maxOffset);
+  const maxOffsetWithPadding = Math.max(0, contentLines.length - 1);
+  const safeScrollOffset = Math.min(
+    Math.max(0, scrollOffset),
+    allowBottomPadding ? maxOffsetWithPadding : maxOffset,
+  );
   const viewportLines: Array<{ key: string; line: RenderedLine }> = [];
 
   for (let row = 0; row < safeHeight; row += 1) {

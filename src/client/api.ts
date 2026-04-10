@@ -50,6 +50,19 @@ export class MessagesApi {
     });
   }
 
+  async replyToMessage(
+    messageSourceURL: string,
+    content: string,
+  ): Promise<{ replied: boolean }> {
+    return this.request('/api/messages/reply', {
+      method: 'POST',
+      body: JSON.stringify({
+        messageSourceURL,
+        content,
+      }),
+    });
+  }
+
   private async request<T>(path: string, init?: RequestInit): Promise<T> {
     const headers = new Headers(init?.headers);
     headers.set('accept', 'application/json');
