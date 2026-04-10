@@ -1,4 +1,5 @@
 import { Text } from 'ink';
+import { sanitizeForTerminalText } from './terminal-text.js';
 
 interface Segment {
   type:
@@ -24,16 +25,17 @@ interface Segment {
  *  - *bold*, _italic_, ~strike~, `code`
  */
 export function parseMrkdwn(input: string): Segment[] {
+  const normalizedInput = sanitizeForTerminalText(input);
   const segments: Segment[] = [];
 
   // First pass: split on Slack angle-bracket tokens  <…>
   const angleBracketRe = /<([^>]+)>/g;
   let cursor = 0;
-  let match = angleBracketRe.exec(input);
+  let match = angleBracketRe.exec(normalizedInput);
 
   while (match !== null) {
     if (match.index > cursor) {
-      pushInlineSegments(segments, input.slice(cursor, match.index));
+      pushInlineSegments(segments, normalizedInput.slice(cursor, match.index));
     }
     const inner = match[1];
     if (inner.startsWith('@')) {
@@ -58,11 +60,11 @@ export function parseMrkdwn(input: string): Segment[] {
       }
     }
     cursor = match.index + match[0].length;
-    match = angleBracketRe.exec(input);
+    match = angleBracketRe.exec(normalizedInput);
   }
 
-  if (cursor < input.length) {
-    pushInlineSegments(segments, input.slice(cursor));
+  if (cursor < normalizedInput.length) {
+    pushInlineSegments(segments, normalizedInput.slice(cursor));
   }
 
   return segments;

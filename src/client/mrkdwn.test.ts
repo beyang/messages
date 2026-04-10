@@ -67,4 +67,10 @@ describe('parseMrkdwn', () => {
       { type: 'channel', text: '#dev' },
     ]);
   });
+
+  it('normalizes carriage returns before parsing', () => {
+    expect(parseMrkdwn('one\r\ntwo\rthree')).toEqual([
+      { type: 'text', text: 'one\ntwo\nthree' },
+    ]);
+  });
 });

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { Convo, Inbox, Message } from '../shared/types.js';
 import { MessagesApi } from './api.js';
 import { MrkdwnText } from './mrkdwn.js';
+import { sanitizeForTerminalText } from './terminal-text.js';
 
 const serverURL = process.env.MESSAGES_SERVER_URL ?? 'http://localhost:3000';
 const api = new MessagesApi(serverURL);
@@ -18,16 +19,23 @@ function clamp(index: number, length: number): number {
 }
 
 function MessagePreview({ message }: { message: Message }) {
-  const author = message.author?.displayName ?? message.author?.username;
+  const authorName = message.author?.displayName ?? message.author?.username;
+  const author = authorName ? sanitizeForTerminalText(authorName) : undefined;
+  const subject = message.subject
+    ? sanitizeForTerminalText(message.subject)
+    : undefined;
+  const preview = sanitizeForTerminalText(message.content)
+    .replace(/\n+/g, '')
+    .slice(0, 20);
   return (
     <Box flexDirection="column">
       <Text wrap="truncate">
         {author}
-        {author && message.subject ? ', ' : ''}
-        {message.subject && <Text bold>{message.subject}</Text>}
+        {author && subject ? ', ' : ''}
+        {subject && <Text bold>{subject}</Text>}
       </Text>
       <Text wrap="truncate" dimColor>
-        <MrkdwnText content={message.content} />
+        {preview}
       </Text>
     </Box>
   );
@@ -114,18 +122,21 @@ function Pane({
 }
 
 function MessageFull({ message }: { message: Message }) {
+  const content = sanitizeForTerminalText(message.content);
+  const timestamp = sanitizeForTerminalText(message.timestamp ?? '');
+  const sourceURL = sanitizeForTerminalText(message.sourceURL);
   const authorLabel = message.author
     ? message.author.displayName
-      ? `${message.author.displayName} <${message.author.username}>`
-      : message.author.username
+      ? `${sanitizeForTerminalText(message.author.displayName)} <${sanitizeForTerminalText(message.author.username)}>`
+      : sanitizeForTerminalText(message.author.username)
     : 'Unknown';
   return (
     <Box flexDirection="column" marginBottom={1}>
       <Text bold>From: {authorLabel}</Text>
-      <Text dimColor>{message.timestamp ?? ''}</Text>
-      <Text dimColor>{message.sourceURL}</Text>
+      <Text dimColor>{timestamp}</Text>
+      <Text dimColor>{sourceURL}</Text>
       <Text> </Text>
-      <MrkdwnText content={message.content} />
+      <MrkdwnText content={content} />
     </Box>
   );
 }
@@ -155,11 +166,12 @@ function Footer({
   inbox: Inbox | null;
   convo: Convo | null;
 }) {
+  const safeStatus = sanitizeForTerminalText(status);
   const providerLabel = inbox
-    ? `Providers: ${inbox.providers.length > 0 ? inbox.providers.map((p) => `${p.id}(${p.type})`).join(', ') : '(none)'}`
+    ? `Providers: ${inbox.providers.length > 0 ? inbox.providers.map((p) => `${sanitizeForTerminalText(p.id)}(${sanitizeForTerminalText(p.type)})`).join(', ') : '(none)'}`
     : 'Providers: (no inbox selected)';
   const convoLabel = convo
-    ? `Selected convo: ${convo.sourceURL}`
+    ? `Selected convo: ${sanitizeForTerminalText(convo.sourceURL)}`
     : 'Selected convo: (none)';
 
   return (
@@ -169,7 +181,7 @@ function Footer({
       borderColor="white"
       paddingX={1}
     >
-      <Text>{status}</Text>
+      <Text>{safeStatus}</Text>
       <Text bold>
         Keys:{' '}
         <Text>
@@ -216,14 +228,14 @@ function App() {
   }, [refreshData]);
 
   const inboxItems = inboxes.map(
-    (inbox) => `${inbox.id} (${inbox.convos.length})`,
+    (inbox) => `${sanitizeForTerminalText(inbox.id)} (${inbox.convos.length})`,
   );
   const convoItems = convos.map((convo) => {
     const lastMessage = convo.messages[convo.messages.length - 1];
     if (lastMessage) {
       return <MessagePreview key={convo.id} message={lastMessage} />;
     }
-    return convo.sourceURL;
+    return sanitizeForTerminalText(convo.sourceURL);
   });
 
   useInput((input, key) => {
