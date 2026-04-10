@@ -65,8 +65,6 @@ function cancelEdit() {
   editValue = '';
 }
 
-let showAuthModal = $state(false);
-let authProviderId = $state('');
 let authError = $state('');
 
 let allProviders = $derived(data.authProviders);
@@ -102,22 +100,16 @@ function handleInboxForProvidersChange(event: Event) {
   syncSelectedProvidersForInbox(selectedInboxForProviders);
 }
 
-function openAuthModal() {
-  authError = '';
-  authProviderId = allProviders[0] ? String(allProviders[0].id) : '';
-  showAuthModal = true;
-}
+async function startAuthForProvider(providerID: string) {
+  if (!providerID) {
+    authError = 'Provider not found.';
+    return;
+  }
 
-function closeAuthModal() {
-  showAuthModal = false;
-}
-
-async function startAuth() {
-  if (!authProviderId) return;
   authError = '';
 
   const selectedProvider = allProviders.find(
-    (p) => String(p.id) === authProviderId,
+    (p) => String(p.id) === providerID,
   );
   if (!selectedProvider) {
     authError = 'Provider not found.';
@@ -131,10 +123,10 @@ async function startAuth() {
   }
 
   const res = await fetch(
-    `${oauthPath}?provider_id=${encodeURIComponent(authProviderId)}`,
+    `${oauthPath}?provider_id=${encodeURIComponent(providerID)}`,
   );
-  const body = await res.json();
-  if (!res.ok) {
+  const body = (await res.json()) as { error?: string; url?: string };
+  if (!res.ok || !body.url) {
     authError = body.error ?? 'Failed to start auth.';
     return;
   }
@@ -155,12 +147,11 @@ async function startAuth() {
       <button type="button" class="add-btn" onclick={openSetInboxProvidersModal}>
         Set Inbox Providers
       </button>
-      <button type="button" class="add-btn" onclick={openAuthModal}>Authorize</button>
     </span>
   </h1>
 
-  {#if form?.error || data.authError}
-    <div class="flash error">{form?.error ?? data.authError}</div>
+  {#if form?.error || data.authError || authError}
+    <div class="flash error">{form?.error ?? data.authError ?? authError}</div>
   {/if}
   {#if form?.success || data.authSuccess}
     <div class="flash success">{form?.success ?? data.authSuccess}</div>
@@ -180,7 +171,7 @@ async function startAuth() {
                 {#each table.columns as col}
                   <th>{col}</th>
                 {/each}
-                {#if name === 'inbox'}
+                {#if name === 'inbox' || name === 'providers'}
                   <th></th>
                 {/if}
               </tr>
@@ -217,6 +208,22 @@ async function startAuth() {
                         <input type="hidden" name="inboxId" value={String(row.id ?? '')} />
                         <button type="submit" class="delete-btn">Delete</button>
                       </form>
+                    </td>
+                  {:else if name === 'providers'}
+                    {@const providerID = String(row.id ?? '')}
+                    {@const providerType = String(row.type ?? '')}
+                    <td>
+                      {#if oauthPathsByProviderType[providerType]}
+                        <button
+                          type="button"
+                          class="row-auth-btn"
+                          onclick={() => startAuthForProvider(providerID)}
+                        >
+                          Authorize
+                        </button>
+                      {:else}
+                        <span class="row-auth-unavailable">—</span>
+                      {/if}
                     </td>
                   {/if}
                 </tr>
@@ -344,37 +351,6 @@ async function startAuth() {
             <button type="submit">Save</button>
           </div>
         </form>
-      {/if}
-    </div>
-  </div>
-{/if}
-
-{#if showAuthModal}
-  <div class="overlay" onclick={closeAuthModal} role="presentation">
-    <!-- svelte-ignore a11y_click_events_have_key_events -->
-    <div class="modal" onclick={(e) => e.stopPropagation()} role="dialog" tabindex="-1">
-      <h2>Authorize Provider</h2>
-      {#if authError}
-        <div class="flash error">{authError}</div>
-      {/if}
-      {#if allProviders.length === 0}
-        <p class="empty">No providers configured. Add a provider first.</p>
-        <div class="modal-actions">
-          <button type="button" onclick={closeAuthModal}>Close</button>
-        </div>
-      {:else}
-        <label>
-          Provider
-          <select bind:value={authProviderId}>
-            {#each allProviders as p}
-              <option value={String(p.id)}>{p.id} ({p.type}) — {p.identityJSON}</option>
-            {/each}
-          </select>
-        </label>
-        <div class="modal-actions">
-          <button type="button" onclick={closeAuthModal}>Cancel</button>
-          <button type="button" class="auth-submit" onclick={startAuth}>Authorize</button>
-        </div>
       {/if}
     </div>
   </div>
@@ -568,6 +544,24 @@ async function startAuth() {
     background: #991b1b;
   }
 
+  .row-auth-btn {
+    padding: 0.25rem 0.6rem;
+    background: #1d4ed8;
+    color: #dbeafe;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.78rem;
+  }
+  .row-auth-btn:hover {
+    background: #1e40af;
+  }
+
+  .row-auth-unavailable {
+    color: #64748b;
+    font-size: 0.78rem;
+  }
+
   .pagination {
     margin-top: 0.75rem;
     display: flex;
@@ -665,13 +659,6 @@ async function startAuth() {
   }
   .modal-actions button[type='button']:hover {
     background: #475569;
-  }
-  .modal-actions button.auth-submit {
-    background: #3b82f6;
-    color: #fff;
-  }
-  .modal-actions button.auth-submit:hover {
-    background: #2563eb;
   }
 
   .provider-list {
