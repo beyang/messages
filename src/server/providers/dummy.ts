@@ -59,4 +59,12 @@ export class DummyProvider
     _messageSourceURL: string,
     _archived: boolean,
   ): Promise<void> {}
+
+  async reply(
+    _identity: ProviderIdentity,
+    _messageSourceURL: string,
+    _content: string,
+  ): Promise<void> {
+    throw new Error('Dummy provider does not support replies.');
+  }
 }

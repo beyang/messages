@@ -10,7 +10,10 @@ import { getGmailConfig } from '../gmail-config';
 import { getProviderSecretsValue, updateProviderSecretsValue } from './secrets';
 
 const GMAIL_REDIRECT_PATH = '/api/oauth/gmail/callback';
-const GMAIL_SCOPES = 'https://www.googleapis.com/auth/gmail.modify';
+const GMAIL_SCOPES = [
+  'https://www.googleapis.com/auth/gmail.modify',
+  'https://www.googleapis.com/auth/gmail.send',
+].join(' ');
 
 export interface GmailProviderIdentity extends ProviderIdentity {
   email: string;
@@ -29,10 +32,15 @@ interface GmailListResponse {
   messages?: { id: string; threadId: string }[];
 }
 
+interface GmailHeader {
+  name: string;
+  value: string;
+}
+
 interface GmailMessagePart {
   mimeType: string;
   body?: { data?: string };
-  headers?: { name: string; value: string }[];
+  headers?: GmailHeader[];
   parts?: GmailMessagePart[];
 }
 
@@ -120,6 +128,19 @@ function parseFromHeader(from: string): Author {
     return { username: match[2], displayName: match[1].replace(/^"|"$/g, '') };
   }
   return { username: from };
+}
+
+function getHeaderValue(
+  headers: GmailHeader[] | undefined,
+  name: string,
+): string | undefined {
+  const targetName = name.toLowerCase();
+  return headers?.find((header) => header.name.toLowerCase() === targetName)
+    ?.value;
+}
+
+function sanitizeMailHeaderValue(value: string): string {
+  return value.replace(/[\r\n]+/g, ' ').trim();
 }
 
 function parseMessageIDFromSourceURL(sourceURL: string): string {
@@ -283,12 +304,8 @@ export class GmailProvider
           id: `gmail-${threadId}`,
           sourceURL: `${gmailInboxURLPrefix}${threadId}`,
           messages: thread.messages.map((msg) => {
-            const subject = msg.payload.headers?.find(
-              (h) => h.name.toLowerCase() === 'subject',
-            )?.value;
-            const from = msg.payload.headers?.find(
-              (h) => h.name.toLowerCase() === 'from',
-            )?.value;
+            const subject = getHeaderValue(msg.payload.headers, 'subject');
+            const from = getHeaderValue(msg.payload.headers, 'from');
             return {
               id: msg.id,
               sourceURL: `${gmailInboxURLPrefix}${msg.id}`,
@@ -361,6 +378,85 @@ export class GmailProvider
         removeLabelIds: archived ? ['INBOX'] : [],
       },
     );
+  }
+
+  async reply(
+    _identity: GmailProviderIdentity,
+    messageSourceURL: string,
+    content: string,
+  ): Promise<void> {
+    const refreshToken = getProviderSecretsValue(this.id).trim();
+    if (!refreshToken) {
+      throw new Error(
+        `Missing Gmail refresh token for provider "${this.id}". Re-authorize this provider.`,
+      );
+    }
+
+    if (!content.trim()) {
+      throw new Error('Reply content must not be empty.');
+    }
+
+    const messageID = parseMessageIDFromSourceURL(messageSourceURL);
+    const accessToken = await this.getAccessToken(refreshToken);
+    const originalMessage = await this.gmailGet<GmailMessageResponse>(
+      accessToken,
+      `messages/${encodeURIComponent(messageID)}?format=metadata&metadataHeaders=Reply-To&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Message-ID`,
+    );
+
+    const toHeaderRaw =
+      getHeaderValue(originalMessage.payload.headers, 'Reply-To') ??
+      getHeaderValue(originalMessage.payload.headers, 'From');
+
+    if (!toHeaderRaw) {
+      throw new Error(
+        `Cannot reply to Gmail message "${messageID}": missing From/Reply-To header.`,
+      );
+    }
+
+    const toHeader = sanitizeMailHeaderValue(toHeaderRaw);
+    if (!toHeader) {
+      throw new Error(
+        `Cannot reply to Gmail message "${messageID}": invalid From/Reply-To header.`,
+      );
+    }
+
+    const originalSubject = sanitizeMailHeaderValue(
+      getHeaderValue(originalMessage.payload.headers, 'Subject') ?? '',
+    );
+    const replySubject =
+      originalSubject.length > 0
+        ? /^re:/i.test(originalSubject)
+          ? originalSubject
+          : `Re: ${originalSubject}`
+        : 'Re:';
+    const inReplyTo = sanitizeMailHeaderValue(
+      getHeaderValue(originalMessage.payload.headers, 'Message-ID') ?? '',
+    );
+
+    const headerLines = [
+      `To: ${toHeader}`,
+      `Subject: ${replySubject}`,
+      ...(inReplyTo
+        ? [`In-Reply-To: ${inReplyTo}`, `References: ${inReplyTo}`]
+        : []),
+      'Content-Type: text/plain; charset="UTF-8"',
+      'MIME-Version: 1.0',
+    ];
+
+    const normalizedContent = content
+      .replace(/\r\n/g, '\n')
+      .replace(/\r/g, '\n')
+      .replace(/\n/g, '\r\n');
+
+    const raw = Buffer.from(
+      `${headerLines.join('\r\n')}\r\n\r\n${normalizedContent}`,
+      'utf-8',
+    ).toString('base64url');
+
+    await this.gmailPost('messages/send', accessToken, {
+      threadId: originalMessage.threadId,
+      raw,
+    });
   }
 }
 

@@ -40,3 +40,12 @@ export async function fetchConvosFromProvider(
   const provider = instantiateProvider(config);
   return provider.fetchConvos(config.identity, query);
 }
+
+export async function replyWithProvider(
+  config: ProviderConfig,
+  messageSourceURL: string,
+  content: string,
+): Promise<void> {
+  const provider = instantiateProvider(config);
+  await provider.reply(config.identity, messageSourceURL, content);
+}

@@ -274,6 +274,14 @@ export class SlackProvider
   ): Promise<void> {
     throw new Error('Slack does not currently support archiving via API.');
   }
+
+  async reply(
+    _identity: SlackProviderIdentity,
+    _messageSourceURL: string,
+    _content: string,
+  ): Promise<void> {
+    throw new Error('Slack does not currently support replying via API.');
+  }
 }
 
 export async function exchangeSlackCode(

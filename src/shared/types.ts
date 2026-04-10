@@ -215,6 +215,7 @@ export interface Provider<
     messageSourceURL: string,
     archived: boolean,
   ): Promise<void>;
+  reply(identity: I, messageSourceURL: string, content: string): Promise<void>;
   authInitURL?(identity: I, baseURL: string): string;
   handleAuthCallback?(secret: string): void;
 }
