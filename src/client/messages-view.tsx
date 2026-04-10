@@ -7,6 +7,15 @@ interface RenderedLine {
   text: string;
   bold?: boolean;
   dimColor?: boolean;
+  messageIndex?: number;
+  isMessageStart?: boolean;
+}
+
+export interface ConvoMessageLayout {
+  lines: RenderedLine[];
+  messages: Message[];
+  messageLineStarts: number[];
+  messageLineCounts: number[];
 }
 
 function textLength(text: string): number {
@@ -116,19 +125,45 @@ export function buildConvoMessageLines(
   convo: Convo | null,
   width: number,
 ): RenderedLine[] {
+  return buildConvoMessageLayout(convo, width).lines;
+}
+
+export function buildConvoMessageLayout(
+  convo: Convo | null,
+  width: number,
+): ConvoMessageLayout {
   if (!convo || convo.messages.length === 0) {
-    return [];
+    return {
+      lines: [],
+      messages: [],
+      messageLineStarts: [],
+      messageLineCounts: [],
+    };
   }
 
-  const reverseChronologicalMessages = [...convo.messages].reverse();
+  const messages = [...convo.messages].reverse();
+  const lines: RenderedLine[] = [];
+  const messageLineStarts: number[] = [];
+  const messageLineCounts: number[] = [];
 
-  return reverseChronologicalMessages.flatMap((message, index) =>
-    buildMessageLines(
+  messages.forEach((message, messageIndex) => {
+    const messageLines = buildMessageLines(
       message,
       width,
-      index < reverseChronologicalMessages.length - 1,
-    ),
-  );
+      messageIndex < messages.length - 1,
+    );
+    messageLineStarts.push(lines.length);
+    messageLineCounts.push(messageLines.length);
+    lines.push(
+      ...messageLines.map((line, lineIndex) => ({
+        ...line,
+        messageIndex,
+        isMessageStart: lineIndex === 0,
+      })),
+    );
+  });
+
+  return { lines, messages, messageLineStarts, messageLineCounts };
 }
 
 export function MessagesView({
@@ -136,11 +171,15 @@ export function MessagesView({
   lines,
   height,
   scrollOffset,
+  selectedMessageIndex,
+  isFocused,
 }: {
   convo: Convo | null;
   lines: RenderedLine[];
   height: number;
   scrollOffset: number;
+  selectedMessageIndex: number;
+  isFocused: boolean;
 }) {
   const safeHeight = Math.max(0, height);
 
@@ -172,16 +211,31 @@ export function MessagesView({
 
   return (
     <Box flexDirection="column" height={safeHeight} overflowY="hidden">
-      {viewportLines.map((entry) => (
-        <Text
-          key={entry.key}
-          bold={entry.line.bold}
-          dimColor={entry.line.dimColor}
-          wrap="truncate-end"
-        >
-          {entry.line.text.length > 0 ? entry.line.text : ' '}
-        </Text>
-      ))}
+      {viewportLines.map((entry) => {
+        const isSelectedMessageLine =
+          entry.line.messageIndex === selectedMessageIndex && !!convo;
+        const isSelectedMessageStart =
+          isSelectedMessageLine && entry.line.isMessageStart;
+        const linePrefix = isSelectedMessageStart ? '❯ ' : '  ';
+
+        return (
+          <Box key={entry.key} flexDirection="row">
+            <Text
+              bold={isSelectedMessageStart}
+              inverse={isSelectedMessageStart && isFocused}
+            >
+              {linePrefix}
+            </Text>
+            <Text
+              bold={entry.line.bold}
+              dimColor={entry.line.dimColor}
+              wrap="truncate-end"
+            >
+              {entry.line.text.length > 0 ? entry.line.text : ' '}
+            </Text>
+          </Box>
+        );
+      })}
     </Box>
   );
 }

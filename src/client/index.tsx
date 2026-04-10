@@ -1,9 +1,9 @@
 import { Box, render, Text, useApp, useInput, useStdout } from 'ink';
 import type React from 'react';
-import { useCallback, useEffect, useState } from 'react';
-import type { Convo, Inbox } from '../shared/types.js';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import type { Convo, Inbox, Message } from '../shared/types.js';
 import { MessagesApi } from './api.js';
-import { buildConvoMessageLines, MessagesView } from './messages-view.js';
+import { buildConvoMessageLayout, MessagesView } from './messages-view.js';
 import { sanitizeForTerminalText } from './terminal-text.js';
 
 const serverURL = process.env.MESSAGES_SERVER_URL ?? 'http://localhost:3000';
@@ -16,6 +16,7 @@ const FALLBACK_TERMINAL_ROWS = 24;
 const FALLBACK_TERMINAL_COLS = 80;
 const FOOTER_HEIGHT = 5;
 const PANE_CHROME_HEIGHT = 3;
+const MESSAGE_LINE_PREFIX_WIDTH = 2;
 
 function clamp(index: number, length: number): number {
   if (length <= 0) return 0;
@@ -52,6 +53,47 @@ function getVisibleWindowStart(
   const desiredStart = Math.max(0, selectedIndex - visibleCount + 1);
 
   return Math.min(maxStart, desiredStart);
+}
+
+function getMessageScrollOffsetForSelection(
+  selectedMessageIndex: number,
+  messageLineStarts: number[],
+  messageLineCounts: number[],
+  previousScrollOffset: number,
+  visibleHeight: number,
+  maxScrollOffset: number,
+): number {
+  if (messageLineStarts.length === 0 || visibleHeight <= 0) {
+    return 0;
+  }
+
+  const clampedPrevious = Math.min(
+    Math.max(0, previousScrollOffset),
+    maxScrollOffset,
+  );
+  const selectedStart = Math.min(
+    messageLineStarts[selectedMessageIndex] ?? 0,
+    maxScrollOffset,
+  );
+  const selectedHeight = Math.max(
+    1,
+    messageLineCounts[selectedMessageIndex] ?? 1,
+  );
+  const selectedEnd = selectedStart + selectedHeight;
+
+  if (selectedHeight >= visibleHeight) {
+    return selectedStart;
+  }
+
+  if (selectedStart < clampedPrevious) {
+    return selectedStart;
+  }
+
+  if (selectedEnd > clampedPrevious + visibleHeight) {
+    return Math.min(maxScrollOffset, Math.max(0, selectedEnd - visibleHeight));
+  }
+
+  return clampedPrevious;
 }
 
 function ConvoPreview({ convo }: { convo: Convo }) {
@@ -197,11 +239,13 @@ function Footer({
   status,
   inbox,
   convo,
+  message,
   height,
 }: {
   status: string;
   inbox: Inbox | null;
   convo: Convo | null;
+  message: Message | null;
   height: number;
 }) {
   const safeStatus = sanitizeForTerminalText(status);
@@ -211,6 +255,9 @@ function Footer({
   const convoLabel = convo
     ? `Selected convo: ${sanitizeForTerminalText(convo.sourceURL)}`
     : 'Selected convo: (none)';
+  const messageLabel = message
+    ? `Selected message: ${sanitizeForTerminalText(message.id)}`
+    : 'Selected message: (none)';
 
   return (
     <Box
@@ -228,7 +275,7 @@ function Footer({
         clear inbox · q quit
       </Text>
       <Text wrap="truncate-end">
-        {inboxLabel} · {convoLabel}
+        {inboxLabel} · {convoLabel} · {messageLabel}
       </Text>
     </Box>
   );
@@ -240,6 +287,7 @@ function App() {
   const [inboxes, setInboxes] = useState<Inbox[]>([]);
   const [selectedInboxIndex, setSelectedInboxIndex] = useState(0);
   const [selectedConvoIndex, setSelectedConvoIndex] = useState(0);
+  const [selectedMessageIndex, setSelectedMessageIndex] = useState(0);
   const [focusPane, setFocusPane] = useState<FocusPane>('inboxes');
   const [messageScrollOffset, setMessageScrollOffset] = useState(0);
   const [terminalRows, setTerminalRows] = useState(
@@ -258,12 +306,16 @@ function App() {
   const paneBodyHeight = Math.max(0, mainHeight - PANE_CHROME_HEIGHT);
   const messagePaneContentWidth = Math.max(
     20,
-    Math.floor(terminalCols * 0.5) - 7,
+    Math.floor(terminalCols * 0.5) - 7 - MESSAGE_LINE_PREFIX_WIDTH,
   );
-  const currentConvoLines = buildConvoMessageLines(
-    currentConvo,
-    messagePaneContentWidth,
+  const currentConvoLayout = useMemo(
+    () => buildConvoMessageLayout(currentConvo, messagePaneContentWidth),
+    [currentConvo, messagePaneContentWidth],
   );
+  const currentConvoLines = currentConvoLayout.lines;
+  const messageCount = currentConvoLayout.messages.length;
+  const currentMessage =
+    currentConvoLayout.messages[selectedMessageIndex] ?? null;
   const maxMessageScrollOffset = Math.max(
     0,
     currentConvoLines.length - paneBodyHeight,
@@ -289,16 +341,37 @@ function App() {
 
   useEffect(() => {
     if (!currentConvo) {
+      setSelectedMessageIndex(0);
       setMessageScrollOffset(0);
       return;
     }
 
+    setSelectedMessageIndex(0);
     setMessageScrollOffset(0);
   }, [currentConvo]);
 
   useEffect(() => {
-    setMessageScrollOffset((prev) => Math.min(prev, maxMessageScrollOffset));
-  }, [maxMessageScrollOffset]);
+    setSelectedMessageIndex((prev) => clamp(prev, messageCount));
+  }, [messageCount]);
+
+  useEffect(() => {
+    setMessageScrollOffset((prev) =>
+      getMessageScrollOffsetForSelection(
+        selectedMessageIndex,
+        currentConvoLayout.messageLineStarts,
+        currentConvoLayout.messageLineCounts,
+        prev,
+        paneBodyHeight,
+        maxMessageScrollOffset,
+      ),
+    );
+  }, [
+    selectedMessageIndex,
+    currentConvoLayout.messageLineStarts,
+    currentConvoLayout.messageLineCounts,
+    paneBodyHeight,
+    maxMessageScrollOffset,
+  ]);
 
   const refreshData = useCallback(async (msg: string) => {
     try {
@@ -356,7 +429,7 @@ function App() {
       } else if (focusPane === 'convos') {
         setSelectedConvoIndex((prev) => clamp(prev - 1, convos.length));
       } else {
-        setMessageScrollOffset((prev) => Math.max(prev - 1, 0));
+        setSelectedMessageIndex((prev) => clamp(prev - 1, messageCount));
       }
       return;
     }
@@ -371,9 +444,7 @@ function App() {
       } else if (focusPane === 'convos') {
         setSelectedConvoIndex((prev) => clamp(prev + 1, convos.length));
       } else {
-        setMessageScrollOffset((prev) =>
-          Math.min(prev + 1, maxMessageScrollOffset),
-        );
+        setSelectedMessageIndex((prev) => clamp(prev + 1, messageCount));
       }
       return;
     }
@@ -481,6 +552,8 @@ function App() {
               lines={currentConvoLines}
               height={paneBodyHeight}
               scrollOffset={messageScrollOffset}
+              selectedMessageIndex={selectedMessageIndex}
+              isFocused={focusPane === 'messages'}
             />
           </Box>
         </Pane>
@@ -489,6 +562,7 @@ function App() {
         status={status}
         inbox={currentInbox}
         convo={currentConvo}
+        message={currentMessage}
         height={footerHeight}
       />
     </Box>
