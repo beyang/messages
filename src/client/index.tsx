@@ -287,6 +287,7 @@ function Footer({
     'f fetch',
     'c clear inbox',
     's toggle star',
+    'e toggle archive',
   ];
   if (canOpenSourceURL) {
     keyHints.push('o open source');
@@ -571,6 +572,31 @@ function App() {
         } catch (error) {
           const detail = error instanceof Error ? error.message : String(error);
           setStatus(`Star toggle failed: ${detail}`);
+        }
+      })();
+      return;
+    }
+
+    if (input === 'e') {
+      if (!currentMessage) {
+        setStatus('No message selected.');
+        return;
+      }
+
+      const nextArchived = !(currentMessage.isArchived ?? false);
+      setStatus(
+        `${nextArchived ? 'Archiving' : 'Unarchiving'} message "${currentMessage.id}"...`,
+      );
+
+      void (async () => {
+        try {
+          await api.setMessageArchived(currentMessage.sourceURL, nextArchived);
+          await refreshData(
+            `${nextArchived ? 'Archived' : 'Unarchived'} message "${currentMessage.id}".`,
+          );
+        } catch (error) {
+          const detail = error instanceof Error ? error.message : String(error);
+          setStatus(`Archive toggle failed: ${detail}`);
         }
       })();
       return;

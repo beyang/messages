@@ -408,6 +408,60 @@ export function setMessageStar(
   return foundMessage;
 }
 
+export function setMessageArchived(
+  providerID: string,
+  messageSourceURL: string,
+  archived: boolean,
+): boolean {
+  const database = initializeDatabase();
+  const convoRows = database
+    .prepare(
+      `
+        SELECT
+          id,
+          source_url AS sourceURL,
+          inbox_id AS inboxID,
+          messages_json AS messagesJSON
+        FROM convo
+      `,
+    )
+    .all() as ConvoRow[];
+
+  const updateConvoMessages = database.prepare(
+    'UPDATE convo SET messages_json = ? WHERE id = ?',
+  );
+
+  let foundMessage = false;
+
+  database.transaction(() => {
+    for (const row of convoRows) {
+      const messages = parseMessages(row.messagesJSON, row.sourceURL);
+      let hasChanges = false;
+
+      for (const message of messages) {
+        if (
+          message.providerID !== providerID ||
+          message.sourceURL !== messageSourceURL
+        ) {
+          continue;
+        }
+
+        foundMessage = true;
+        if (message.isArchived !== archived) {
+          message.isArchived = archived;
+          hasChanges = true;
+        }
+      }
+
+      if (hasChanges) {
+        updateConvoMessages.run(JSON.stringify(messages), row.id);
+      }
+    }
+  })();
+
+  return foundMessage;
+}
+
 export function mergeMessages(
   existing: Message[],
   incoming: Message[],

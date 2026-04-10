@@ -37,6 +37,19 @@ export class MessagesApi {
     });
   }
 
+  async setMessageArchived(
+    messageSourceURL: string,
+    archived: boolean,
+  ): Promise<{ archived: boolean; updatedLocal: boolean }> {
+    return this.request('/api/messages/archive', {
+      method: 'POST',
+      body: JSON.stringify({
+        messageSourceURL,
+        archived,
+      }),
+    });
+  }
+
   private async request<T>(path: string, init?: RequestInit): Promise<T> {
     const headers = new Headers(init?.headers);
     headers.set('accept', 'application/json');
