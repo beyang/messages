@@ -125,11 +125,20 @@ function getMessageScrollOffsetForSelection(
 }
 
 function ConvoPreview({ convo }: { convo: Convo }) {
+  const hasStarredMessage = convo.messages.some(
+    (message) => message.hasStar === true,
+  );
+  const allMessagesArchived =
+    convo.messages.length > 0 &&
+    convo.messages.every((message) => message.isArchived === true);
+  const convoStatusPrefix = `${hasStarredMessage ? '⭐ ' : ''}${allMessagesArchived ? '📦 ' : ''}`;
   const lastMessage = convo.messages[convo.messages.length - 1];
   if (!lastMessage) {
     return (
       <Box flexDirection="column">
-        <Text wrap="truncate">{sanitizeForTerminalText(convo.sourceURL)}</Text>
+        <Text wrap="truncate">
+          {`${convoStatusPrefix}${sanitizeForTerminalText(convo.sourceURL)}`}
+        </Text>
         <Text wrap="truncate" dimColor>
           (no messages)
         </Text>
@@ -147,13 +156,14 @@ function ConvoPreview({ convo }: { convo: Convo }) {
     author && subject
       ? `${author}, ${subject}`
       : (author ?? subject ?? sanitizeForTerminalText(convo.sourceURL));
+  const headingWithStatus = `${convoStatusPrefix}${heading}`;
   const preview = sanitizeForTerminalText(lastMessage.content)
     .replace(/\n+/g, ' ')
     .trim();
 
   return (
     <Box flexDirection="column">
-      <Text wrap="truncate">{heading}</Text>
+      <Text wrap="truncate">{headingWithStatus}</Text>
       <Text wrap="truncate" dimColor>
         {preview.length > 0 ? preview : '(empty message)'}
       </Text>
