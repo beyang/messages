@@ -327,6 +327,87 @@ export function getProviderConfig(id: number): ProviderConfig | null {
   return providerConfigFromRow(row);
 }
 
+export function getMessageProviderID(messageSourceURL: string): string | null {
+  const database = initializeDatabase();
+  const convoRows = database
+    .prepare(
+      `
+        SELECT
+          id,
+          source_url AS sourceURL,
+          inbox_id AS inboxID,
+          messages_json AS messagesJSON
+        FROM convo
+      `,
+    )
+    .all() as ConvoRow[];
+
+  for (const row of convoRows) {
+    const messages = parseMessages(row.messagesJSON, row.sourceURL);
+    for (const message of messages) {
+      if (message.sourceURL === messageSourceURL) {
+        return message.providerID;
+      }
+    }
+  }
+
+  return null;
+}
+
+export function setMessageStar(
+  providerID: string,
+  messageSourceURL: string,
+  starred: boolean,
+): boolean {
+  const database = initializeDatabase();
+  const convoRows = database
+    .prepare(
+      `
+        SELECT
+          id,
+          source_url AS sourceURL,
+          inbox_id AS inboxID,
+          messages_json AS messagesJSON
+        FROM convo
+      `,
+    )
+    .all() as ConvoRow[];
+
+  const updateConvoMessages = database.prepare(
+    'UPDATE convo SET messages_json = ? WHERE id = ?',
+  );
+
+  let foundMessage = false;
+
+  database.transaction(() => {
+    for (const row of convoRows) {
+      const messages = parseMessages(row.messagesJSON, row.sourceURL);
+      let hasChanges = false;
+
+      for (const message of messages) {
+        if (
+          message.providerID !== providerID ||
+          message.sourceURL !== messageSourceURL
+        ) {
+          continue;
+        }
+
+        foundMessage = true;
+        if (message.hasStar !== starred) {
+          message.hasStar = starred;
+          hasChanges = true;
+        }
+      }
+
+      if (hasChanges) {
+        updateConvoMessages.run(JSON.stringify(messages), row.id);
+      }
+    }
+  })();
+
+  return foundMessage;
+}
+
 export function mergeMessages(
   existing: Message[],
   incoming: Message[],

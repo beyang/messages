@@ -272,7 +272,7 @@ function Footer({
       <Text wrap="truncate-end">
         <Text bold>Keys: </Text>
         ↑/↓ move · tab switch pane · ←/→ jump pane · R refresh · f fetch · c
-        clear inbox · q quit
+        clear inbox · s toggle star · q quit
       </Text>
       <Text wrap="truncate-end">
         {inboxLabel} · {convoLabel} · {messageLabel}
@@ -497,6 +497,31 @@ function App() {
         } catch (error) {
           const detail = error instanceof Error ? error.message : String(error);
           setStatus(`Clear failed: ${detail}`);
+        }
+      })();
+      return;
+    }
+
+    if (input === 's') {
+      if (!currentMessage) {
+        setStatus('No message selected.');
+        return;
+      }
+
+      const nextStarred = !(currentMessage.hasStar ?? false);
+      setStatus(
+        `${nextStarred ? 'Starring' : 'Unstarring'} message "${currentMessage.id}"...`,
+      );
+
+      void (async () => {
+        try {
+          await api.setMessageStar(currentMessage.sourceURL, nextStarred);
+          await refreshData(
+            `${nextStarred ? 'Starred' : 'Unstarred'} message "${currentMessage.id}".`,
+          );
+        } catch (error) {
+          const detail = error instanceof Error ? error.message : String(error);
+          setStatus(`Star toggle failed: ${detail}`);
         }
       })();
       return;
