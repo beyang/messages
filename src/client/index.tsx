@@ -4,6 +4,8 @@ import type React from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Convo, Inbox, Message } from '../shared/types.js';
 import { MessagesApi } from './api.js';
+import { Footer } from './footer.js';
+import { HelpModal } from './help-modal.js';
 import { buildConvoMessageLayout, MessagesView } from './messages-view.js';
 import { sanitizeForTerminalText } from './terminal-text.js';
 
@@ -15,7 +17,7 @@ type FocusPane = 'inboxes' | 'convos' | 'messages';
 const FOCUS_PANES: FocusPane[] = ['inboxes', 'convos', 'messages'];
 const FALLBACK_TERMINAL_ROWS = 24;
 const FALLBACK_TERMINAL_COLS = 80;
-const FOOTER_HEIGHT = 5;
+const FOOTER_HEIGHT = 3;
 const PANE_CHROME_HEIGHT = 3;
 const MESSAGE_LINE_PREFIX_WIDTH = 2;
 const REPLY_BOX_MIN_HEIGHT = 4;
@@ -415,69 +417,6 @@ function Pane({
   );
 }
 
-function Footer({
-  status,
-  inbox,
-  convo,
-  message,
-  canOpenSourceURL,
-  height,
-}: {
-  status: string;
-  inbox: Inbox | null;
-  convo: Convo | null;
-  message: Message | null;
-  canOpenSourceURL: boolean;
-  height: number;
-}) {
-  const safeStatus = sanitizeForTerminalText(status);
-  const keyHints = [
-    '↑/↓ move',
-    'tab switch pane',
-    '←/→ jump pane',
-    'R refresh',
-    'f fetch',
-    'c clear inbox',
-    'r compose reply',
-    'alt+enter send reply',
-    's toggle star',
-    'e toggle archive',
-  ];
-  if (canOpenSourceURL) {
-    keyHints.push('o open source');
-  }
-  keyHints.push('q quit');
-  const inboxLabel = inbox
-    ? `Selected inbox: ${sanitizeForTerminalText(inbox.id)}`
-    : 'Selected inbox: (none)';
-  const convoLabel = convo
-    ? `Selected convo: ${sanitizeForTerminalText(convo.sourceURL)}`
-    : 'Selected convo: (none)';
-  const messageLabel = message
-    ? `Selected message: ${sanitizeForTerminalText(message.id)}`
-    : 'Selected message: (none)';
-
-  return (
-    <Box
-      flexDirection="column"
-      borderStyle="single"
-      borderColor="white"
-      paddingX={1}
-      height={height}
-      overflow="hidden"
-    >
-      <Text wrap="truncate-end">{safeStatus}</Text>
-      <Text wrap="truncate-end">
-        <Text bold>Keys: </Text>
-        {keyHints.join(' · ')}
-      </Text>
-      <Text wrap="truncate-end">
-        {inboxLabel} · {convoLabel} · {messageLabel}
-      </Text>
-    </Box>
-  );
-}
-
 function App() {
   const { exit } = useApp();
   const { stdout } = useStdout();
@@ -497,6 +436,7 @@ function App() {
   const [isReplying, setIsReplying] = useState(false);
   const [replyDraft, setReplyDraft] = useState('');
   const [isSubmittingReply, setIsSubmittingReply] = useState(false);
+  const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
 
   const currentInbox = inboxes[selectedInboxIndex] ?? null;
   const convos = useMemo(
@@ -528,7 +468,7 @@ function App() {
     focusPane === 'convos'
       ? latestConvoMessage
       : (currentMessage ?? latestConvoMessage);
-  const canOpenSourceURL = !!openSourceTargetMessage;
+  const _canOpenSourceURL = !!openSourceTargetMessage;
   const selectedMessageTopLine =
     currentConvoLayout.messageLineStarts[selectedMessageIndex] ?? 0;
   const messageViewScrollOffset = isReplying
@@ -634,6 +574,18 @@ function App() {
   useInput((input, key) => {
     if (key.ctrl && input === 'c') {
       exit();
+      return;
+    }
+
+    if (!isReplying && input === '?') {
+      setIsHelpModalOpen((prev) => !prev);
+      return;
+    }
+
+    if (isHelpModalOpen) {
+      if (key.escape) {
+        setIsHelpModalOpen(false);
+      }
       return;
     }
 
@@ -976,14 +928,15 @@ function App() {
           </Box>
         </Pane>
       </Box>
-      <Footer
-        status={status}
-        inbox={currentInbox}
-        convo={currentConvo}
-        message={currentMessage}
-        canOpenSourceURL={canOpenSourceURL}
-        height={footerHeight}
-      />
+      <Footer status={status} height={footerHeight} />
+      {isHelpModalOpen ? (
+        <HelpModal
+          inbox={currentInbox}
+          convo={currentConvo}
+          message={currentMessage}
+          terminalRows={terminalRows}
+        />
+      ) : null}
     </Box>
   );
 }
