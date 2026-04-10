@@ -505,6 +505,13 @@ export function mergeMessages(
       updates.timestamp = msg.timestamp;
     }
 
+    if (
+      typeof msg.metadata === 'string' &&
+      existingMessage.metadata !== msg.metadata
+    ) {
+      updates.metadata = msg.metadata;
+    }
+
     if (Object.keys(updates).length > 0) {
       merged[existingIndex] = {
         ...existingMessage,

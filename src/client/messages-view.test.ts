@@ -101,6 +101,39 @@ describe('buildConvoMessageLines', () => {
     expect(lines[0]?.text).toBe('⭐ starred-url');
   });
 
+  it('renders metadata as muted lines above the from line', () => {
+    const convo: Convo = {
+      id: 'c-3b',
+      sourceURL: 'convo-url',
+      messages: [
+        {
+          id: 'm-metadata',
+          sourceURL: 'metadata-url',
+          providerID: 'test-provider',
+          content: 'message body',
+          metadata:
+            'from: Sender <sender@example.com>\nreply-to: Reply <reply@example.com>',
+          author: { username: 'sender@example.com' },
+        },
+      ],
+    };
+
+    const lines = buildConvoMessageLines(convo, 120);
+
+    expect(lines.map((line) => line.text)).toEqual([
+      'metadata-url',
+      'Time: ',
+      'from: Sender <sender@example.com>',
+      'reply-to: Reply <reply@example.com>',
+      'From: sender@example.com',
+      '',
+      'message body',
+    ]);
+    expect(lines[2]?.dimColor).toBe(true);
+    expect(lines[3]?.dimColor).toBe(true);
+    expect(lines[4]?.bold).toBe(true);
+  });
+
   it('renders timestamps within the last 24 hours as relative age', () => {
     const now = Date.UTC(2026, 3, 10, 12, 0, 0);
     vi.spyOn(Date, 'now').mockReturnValue(now);

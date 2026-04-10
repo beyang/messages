@@ -140,8 +140,126 @@ function getHeaderValue(
     ?.value;
 }
 
+function getHeaderValues(
+  headers: GmailHeader[] | undefined,
+  name: string,
+): string[] {
+  const targetName = name.toLowerCase();
+  return (headers ?? [])
+    .filter((header) => header.name.toLowerCase() === targetName)
+    .map((header) => header.value);
+}
+
 function sanitizeMailHeaderValue(value: string): string {
   return value.replace(/[\r\n]+/g, ' ').trim();
+}
+
+function getSanitizedHeaderValue(
+  headers: GmailHeader[] | undefined,
+  name: string,
+): string | undefined {
+  const value = getHeaderValue(headers, name);
+  if (!value) {
+    return undefined;
+  }
+  const sanitized = sanitizeMailHeaderValue(value);
+  return sanitized.length > 0 ? sanitized : undefined;
+}
+
+function normalizeAuthenticatedDomain(
+  value: string | undefined,
+): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  const normalized = sanitizeMailHeaderValue(value)
+    .replace(/^<|>$/g, '')
+    .replace(/^"|"$/g, '')
+    .trim()
+    .toLowerCase();
+  if (!normalized) {
+    return undefined;
+  }
+
+  const withoutLeadingAt = normalized.startsWith('@')
+    ? normalized.slice(1)
+    : normalized;
+  const atIndex = withoutLeadingAt.lastIndexOf('@');
+  return atIndex >= 0 ? withoutLeadingAt.slice(atIndex + 1) : withoutLeadingAt;
+}
+
+export function extractMailedByFromAuthenticationResults(
+  headers: GmailHeader[] | undefined,
+): string | undefined {
+  const authenticationResults = getHeaderValues(
+    headers,
+    'authentication-results',
+  )
+    .map((value) => sanitizeMailHeaderValue(value))
+    .filter((value) => value.length > 0);
+
+  for (const result of authenticationResults) {
+    const spfPassClauses = result.match(/\bspf=pass\b[^;]*/gi) ?? [];
+    for (const clause of spfPassClauses) {
+      const smtpMailFrom = clause.match(/\bsmtp\.mailfrom=([^\s;]+)/i)?.[1];
+      const smtpFrom = clause.match(/\bsmtp\.from=([^\s;]+)/i)?.[1];
+      const mailedByDomain = normalizeAuthenticatedDomain(
+        smtpMailFrom ?? smtpFrom,
+      );
+      if (mailedByDomain) {
+        return mailedByDomain;
+      }
+    }
+  }
+
+  return undefined;
+}
+
+export function extractSignedByFromAuthenticationResults(
+  headers: GmailHeader[] | undefined,
+): string | undefined {
+  const authenticationResults = getHeaderValues(
+    headers,
+    'authentication-results',
+  )
+    .map((value) => sanitizeMailHeaderValue(value))
+    .filter((value) => value.length > 0);
+
+  for (const result of authenticationResults) {
+    const dkimPassClauses = result.match(/\bdkim=pass\b[^;]*/gi) ?? [];
+    for (const clause of dkimPassClauses) {
+      const headerIdentity = clause.match(/\bheader\.i=([^\s;]+)/i)?.[1];
+      const headerDomain = clause.match(/\bheader\.d=([^\s;]+)/i)?.[1];
+      const signedByDomain = normalizeAuthenticatedDomain(
+        headerIdentity ?? headerDomain,
+      );
+      if (signedByDomain) {
+        return signedByDomain;
+      }
+    }
+  }
+
+  return undefined;
+}
+
+function buildGmailMessageMetadata(
+  headers: GmailHeader[] | undefined,
+): string | undefined {
+  const mailedBy = extractMailedByFromAuthenticationResults(headers);
+  const signedBy = extractSignedByFromAuthenticationResults(headers);
+  const metadataFields: Array<[string, string | undefined]> = [
+    ['to', getSanitizedHeaderValue(headers, 'to')],
+    ['subject', getSanitizedHeaderValue(headers, 'subject')],
+    ['reply-to', getSanitizedHeaderValue(headers, 'reply-to')],
+    ['mailed-by', mailedBy],
+    ['signed-by', signedBy],
+  ];
+
+  const lines = metadataFields.flatMap(([name, value]) =>
+    value ? [`${name}: ${value}`] : [],
+  );
+  return lines.length > 0 ? lines.join('\n') : undefined;
 }
 
 function parseGmailInternalDate(value: string | undefined): number | undefined {
@@ -314,8 +432,12 @@ export class GmailProvider
           id: `gmail-${threadId}`,
           sourceURL: `${gmailInboxURLPrefix}${threadId}`,
           messages: thread.messages.map((msg) => {
-            const subject = getHeaderValue(msg.payload.headers, 'subject');
-            const from = getHeaderValue(msg.payload.headers, 'from');
+            const subject = getSanitizedHeaderValue(
+              msg.payload.headers,
+              'subject',
+            );
+            const from = getSanitizedHeaderValue(msg.payload.headers, 'from');
+            const metadata = buildGmailMessageMetadata(msg.payload.headers);
             const timestamp = parseGmailInternalDate(msg.internalDate);
             return {
               id: msg.id,
@@ -326,6 +448,7 @@ export class GmailProvider
               content: extractMessageContent(msg.payload),
               ...(timestamp !== undefined ? { timestamp } : {}),
               ...(subject ? { subject } : {}),
+              ...(metadata ? { metadata } : {}),
               ...(from ? { author: parseFromHeader(from) } : {}),
             };
           }),

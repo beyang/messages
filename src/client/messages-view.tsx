@@ -135,6 +135,7 @@ function buildMessageLines(
     message.timestamp,
     nowInMilliseconds,
   );
+  const metadataLabel = message.metadata?.trim();
 
   const lines: RenderedLine[] = [
     ...wrapTextLines(sourceURLLabel, safeWidth).map((text) => ({
@@ -145,6 +146,12 @@ function buildMessageLines(
       text,
       dimColor: true,
     })),
+    ...(metadataLabel
+      ? wrapTextLines(metadataLabel, safeWidth).map((text) => ({
+          text,
+          dimColor: true,
+        }))
+      : []),
     ...wrapTextLines(`From: ${authorLabel}`, safeWidth).map((text) => ({
       text,
       bold: true,

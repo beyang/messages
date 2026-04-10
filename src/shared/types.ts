@@ -27,6 +27,7 @@ export interface Message {
   isArchived?: boolean;
   content: string;
   subject?: string;
+  metadata?: string;
   author?: Author;
   timestamp?: number;
 }
@@ -75,6 +76,7 @@ export const messageSchema: z.ZodType<Message> = z
     isArchived: z.unknown().optional(),
     content: z.string(),
     subject: z.unknown().optional(),
+    metadata: z.unknown().optional(),
     author: authorSchema.optional(),
     timestamp: z.unknown().optional(),
   })
@@ -98,6 +100,9 @@ export const messageSchema: z.ZodType<Message> = z
     }
     if (typeof entry.subject === 'string') {
       message.subject = entry.subject;
+    }
+    if (typeof entry.metadata === 'string') {
+      message.metadata = entry.metadata;
     }
     if (entry.author) {
       message.author = entry.author;
