@@ -3,7 +3,7 @@ import { fetchConvosFromProvider } from '../providers';
 import { getInboxProviders, mergeConvosIntoInbox } from '../store';
 
 export async function refreshInbox(
-  inboxID: string,
+  inboxID: number,
 ): Promise<FetchConvosResult> {
   const configs = getInboxProviders(inboxID);
   const result: FetchConvosResult = { convos: [] };

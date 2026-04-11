@@ -9,7 +9,7 @@ vi.mock('./db', async () => {
     CREATE TABLE convo (
       id TEXT PRIMARY KEY,
       source_url TEXT NOT NULL,
-      inbox_id TEXT NOT NULL,
+      inbox_id INTEGER NOT NULL,
       messages_json TEXT NOT NULL
     );
   `);
@@ -63,12 +63,7 @@ describe('setMessageArchived', () => {
       .prepare(
         'INSERT INTO convo (id, source_url, inbox_id, messages_json) VALUES (?, ?, ?, ?)',
       )
-      .run(
-        'gmail-thread-1',
-        convoSourceURL,
-        'inbox-1',
-        JSON.stringify(messages),
-      );
+      .run('gmail-thread-1', convoSourceURL, 1, JSON.stringify(messages));
 
     const found = setMessageArchived('1', targetMessageSourceURL, true, true);
 

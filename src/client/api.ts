@@ -7,21 +7,27 @@ export class MessagesApi {
     return this.request<Inbox[]>('/api/inboxes');
   }
 
-  async fetchProviders(inboxID: string): Promise<{
+  async fetchProviders(inboxID: number): Promise<{
     fetched: number;
     convos: Convo[];
     errors?: string[];
     needsAuth?: { url: string };
   }> {
-    return this.request(`/api/inboxes/${encodeURIComponent(inboxID)}/fetch`, {
-      method: 'POST',
-    });
+    return this.request(
+      `/api/inboxes/${encodeURIComponent(inboxID.toString())}/fetch`,
+      {
+        method: 'POST',
+      },
+    );
   }
 
-  async clearInbox(inboxID: string): Promise<{ deleted: number }> {
-    return this.request(`/api/inboxes/${encodeURIComponent(inboxID)}/clear`, {
-      method: 'POST',
-    });
+  async clearInbox(inboxID: number): Promise<{ deleted: number }> {
+    return this.request(
+      `/api/inboxes/${encodeURIComponent(inboxID.toString())}/clear`,
+      {
+        method: 'POST',
+      },
+    );
   }
 
   async setMessageStar(

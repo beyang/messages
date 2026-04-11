@@ -6,7 +6,7 @@ TABLE: convo
   Columns:
     id TEXT PRIMARY KEY
     source_url TEXT NOT NULL
-    inbox_id TEXT NOT NULL
+    inbox_id INTEGER NOT NULL
     messages_json TEXT NOT NULL
   Foreign keys:
     inbox_id -> inbox(id) ON DELETE CASCADE ON UPDATE NO ACTION
@@ -15,12 +15,15 @@ TABLE: convo
 
 TABLE: inbox
   Columns:
-    id TEXT PRIMARY KEY
+    id INTEGER PRIMARY KEY
+    display_name TEXT NOT NULL
+  Indexes:
+    sqlite_autoindex_inbox_1 UNIQUE (display_name)
 
 TABLE: inbox_providers
   Columns:
     id INTEGER PRIMARY KEY
-    inbox_id TEXT NOT NULL
+    inbox_id INTEGER NOT NULL
     provider_id INTEGER NOT NULL
     query TEXT NOT NULL DEFAULT '{}'
   Foreign keys:

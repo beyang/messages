@@ -72,7 +72,7 @@ let inboxProviderAssignmentByInboxID = $derived.by(
   () =>
     new Map(
       data.inboxProviderAssignments.map((assignment) => [
-        assignment.inboxID,
+        String(assignment.inboxID),
         assignment.providerIDs,
       ]),
     ),
@@ -86,7 +86,8 @@ function syncSelectedProvidersForInbox(inboxID: string) {
 }
 
 function openSetInboxProvidersModal() {
-  selectedInboxForProviders = data.inboxIDs[0] ?? '';
+  selectedInboxForProviders =
+    data.inboxes.length > 0 ? String(data.inboxes[0].id) : '';
   syncSelectedProvidersForInbox(selectedInboxForProviders);
   showSetInboxProvidersModal = true;
 }
@@ -289,7 +290,7 @@ async function startAuthForProvider(providerID: string) {
       <h2>Add Inbox</h2>
       <form method="POST" action="?/addInbox">
         <label>
-          Inbox ID
+          Inbox Name
           <input bind:this={inboxIdInput} name="inboxId" required placeholder="my-inbox" />
         </label>
         <div class="modal-actions">
@@ -306,7 +307,7 @@ async function startAuthForProvider(providerID: string) {
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <div class="modal" onclick={(e) => e.stopPropagation()} role="dialog" tabindex="-1">
       <h2>Set Inbox Providers</h2>
-      {#if data.inboxIDs.length === 0}
+      {#if data.inboxes.length === 0}
         <p class="empty">No inboxes configured. Add an inbox first.</p>
         <div class="modal-actions">
           <button type="button" onclick={closeSetInboxProvidersModal}>Close</button>
@@ -321,8 +322,8 @@ async function startAuthForProvider(providerID: string) {
               bind:value={selectedInboxForProviders}
               onchange={handleInboxForProvidersChange}
             >
-              {#each data.inboxIDs as inboxID}
-                <option value={inboxID}>{inboxID}</option>
+              {#each data.inboxes as inbox}
+                <option value={String(inbox.id)}>{inbox.displayName}</option>
               {/each}
             </select>
           </label>

@@ -46,7 +46,9 @@ export function HelpModal({
   message,
   terminalRows,
 }: HelpModalProps) {
-  const selectedInbox = inbox ? sanitizeForTerminalText(inbox.id) : '(none)';
+  const selectedInbox = inbox
+    ? sanitizeForTerminalText(inbox.displayName)
+    : '(none)';
   const selectedConvo = convo
     ? sanitizeForTerminalText(getConvoTitle(convo))
     : '(none)';

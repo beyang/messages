@@ -1,8 +1,13 @@
-import type { Inbox } from '../shared/types';
+import type { Convo } from '../shared/types';
 
-export const DUMMY_DATA: Inbox[] = [
+export interface SeedInbox {
+  displayName: string;
+  convos: Convo[];
+}
+
+export const DUMMY_DATA: SeedInbox[] = [
   {
-    id: 'personal',
+    displayName: 'personal',
     convos: [
       {
         id: 'convo-alex',
@@ -43,7 +48,7 @@ export const DUMMY_DATA: Inbox[] = [
     ],
   },
   {
-    id: 'work',
+    displayName: 'work',
     convos: [
       {
         id: 'convo-phoenix',

@@ -576,7 +576,8 @@ function App() {
   }, [refreshData]);
 
   const inboxItems = inboxes.map(
-    (inbox) => `${sanitizeForTerminalText(inbox.id)} (${inbox.convos.length})`,
+    (inbox) =>
+      `${sanitizeForTerminalText(inbox.displayName)} (${inbox.convos.length})`,
   );
   const convoItems = convos.map((convo) => (
     <ConvoPreview key={convo.id} convo={convo} />
@@ -756,7 +757,9 @@ function App() {
         setStatus('No inbox selected.');
         return;
       }
-      setStatus(`Fetching providers for inbox "${currentInbox.id}"...`);
+      setStatus(
+        `Fetching providers for inbox "${currentInbox.displayName}"...`,
+      );
       void (async () => {
         try {
           const result = await api.fetchProviders(currentInbox.id);
@@ -783,13 +786,15 @@ function App() {
         setStatus('No inbox selected.');
         return;
       }
-      setStatus(`Clearing messages from inbox "${currentInbox.id}"...`);
+      setStatus(
+        `Clearing messages from inbox "${currentInbox.displayName}"...`,
+      );
       void (async () => {
         try {
           const result = await api.clearInbox(currentInbox.id);
           setSelectedConvoIndex(0);
           await refreshData(
-            `Cleared ${result.deleted} conversation(s) from inbox "${currentInbox.id}".`,
+            `Cleared ${result.deleted} conversation(s) from inbox "${currentInbox.displayName}".`,
           );
         } catch (error) {
           const detail = error instanceof Error ? error.message : String(error);

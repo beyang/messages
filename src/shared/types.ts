@@ -196,12 +196,14 @@ type _providerConfigSchemaProducesProviderConfig = AssertTrue<
 >;
 
 export interface Inbox {
-  id: string;
+  id: number;
+  displayName: string;
   convos: Convo[];
 }
 
 export const inboxSchema: z.ZodType<Inbox> = z.object({
-  id: z.string(),
+  id: z.number().int(),
+  displayName: z.string(),
   convos: z.array(convoSchema),
 });
 

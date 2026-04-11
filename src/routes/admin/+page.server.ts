@@ -1,5 +1,6 @@
 import { fail } from '@sveltejs/kit';
 import { initializeDatabase } from '../../server/db';
+import { parsePositiveInteger } from '../../server/parse';
 import {
   createInbox,
   createProviderConfig,
@@ -28,8 +29,8 @@ function isInboxAlreadyExistsError(error: unknown): boolean {
 
   const code = (error as { code?: unknown }).code;
   return (
-    code === 'SQLITE_CONSTRAINT_PRIMARYKEY' ||
-    error.message.includes('UNIQUE constraint failed: inbox.id')
+    code === 'SQLITE_CONSTRAINT_UNIQUE' ||
+    error.message.includes('UNIQUE constraint failed: inbox.display_name')
   );
 }
 
@@ -112,7 +113,10 @@ export const load: PageServerLoad = ({ url }) => {
 
   return {
     tables: data,
-    inboxIDs: inboxes.map((inbox) => inbox.id),
+    inboxes: inboxes.map((inbox) => ({
+      id: inbox.id,
+      displayName: inbox.displayName,
+    })),
     inboxProviderAssignments,
     authProviders,
     authError,
@@ -163,12 +167,14 @@ export const actions: Actions = {
   },
   addInbox: async ({ request }) => {
     const form = await request.formData();
-    const id = form.get('inboxId') as string | null;
+    const displayName = form.get('inboxId') as string | null;
 
-    if (!id?.trim()) return fail(400, { error: 'Inbox ID is required.' });
+    if (!displayName?.trim()) {
+      return fail(400, { error: 'Inbox name is required.' });
+    }
 
     try {
-      createInbox(id.trim());
+      createInbox(displayName.trim());
     } catch (error) {
       if (isInboxAlreadyExistsError(error)) {
         return fail(400, { error: 'Inbox already exists.' });
@@ -181,22 +187,24 @@ export const actions: Actions = {
   },
   deleteInbox: async ({ request }) => {
     const form = await request.formData();
-    const id = form.get('inboxId') as string | null;
+    const inboxID = parsePositiveInteger(form.get('inboxId') as string | null);
 
-    if (!id?.trim()) return fail(400, { error: 'Inbox ID is required.' });
+    if (inboxID === null) {
+      return fail(400, { error: 'Inbox ID must be a positive integer.' });
+    }
 
-    const deleted = deleteInbox(id.trim());
+    const deleted = deleteInbox(inboxID);
     if (!deleted) return fail(404, { error: 'Inbox not found.' });
 
     return { success: 'Inbox deleted.' };
   },
   setInboxProviders: async ({ request }) => {
     const form = await request.formData();
-    const inboxID = form.get('inboxId') as string | null;
+    const inboxID = parsePositiveInteger(form.get('inboxId') as string | null);
     const rawProviderIDs = form.getAll('providerIDs');
 
-    if (!inboxID?.trim()) {
-      return fail(400, { error: 'Inbox ID is required.' });
+    if (inboxID === null) {
+      return fail(400, { error: 'Inbox ID must be a positive integer.' });
     }
 
     const providerIDs: number[] = [];
@@ -214,11 +222,11 @@ export const actions: Actions = {
     }
 
     try {
-      setInboxProviderAssociations(inboxID.trim(), providerIDs);
+      setInboxProviderAssociations(inboxID, providerIDs);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.error('failed to set inbox providers', {
-        inboxID: inboxID.trim(),
+        inboxID,
         providerIDs,
         error,
       });

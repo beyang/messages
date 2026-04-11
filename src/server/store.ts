@@ -18,13 +18,14 @@ const logger = pino({
 });
 
 interface InboxRow {
-  id: string;
+  id: number;
+  displayName: string;
 }
 
 interface ConvoRow {
   id: string;
   sourceURL: string;
-  inboxID: string;
+  inboxID: number;
   messagesJSON: string;
 }
 
@@ -78,7 +79,7 @@ function convoFromRow(row: ConvoRow): Convo {
 
 function getConvoRowsByInbox(
   database: Database.Database,
-  inboxID: string,
+  inboxID: number,
 ): ConvoRow[] {
   return database
     .prepare(
@@ -123,6 +124,7 @@ function providerConfigFromRow(row: ProviderConfigRow): ProviderConfig {
 function inboxFromRow(database: Database.Database, row: InboxRow): Inbox {
   return {
     id: row.id,
+    displayName: row.displayName,
     convos: getConvoRowsByInbox(database, row.id).map(convoFromRow),
   };
 }
@@ -130,30 +132,35 @@ function inboxFromRow(database: Database.Database, row: InboxRow): Inbox {
 export function listInboxes(): Inbox[] {
   const database = initializeDatabase();
   const inboxRows = database
-    .prepare('SELECT id FROM inbox ORDER BY id')
+    .prepare(
+      'SELECT id, display_name AS displayName FROM inbox ORDER BY display_name',
+    )
     .all() as InboxRow[];
 
   return inboxRows.map((row) => inboxFromRow(database, row));
 }
 
-export function createInbox(id: string): Inbox {
+export function createInbox(displayName: string): Inbox {
   const database = initializeDatabase();
-  database.prepare('INSERT INTO inbox (id) VALUES (?)').run(id);
-  logger.info({ inboxID: id }, 'created inbox');
-  return { id, convos: [] };
+  const result = database
+    .prepare('INSERT INTO inbox (display_name) VALUES (?)')
+    .run(displayName);
+  const inboxID = Number(result.lastInsertRowid);
+  logger.info({ inboxID, inboxDisplayName: displayName }, 'created inbox');
+  return { id: inboxID, displayName, convos: [] };
 }
 
-export function deleteInbox(id: string): boolean {
+export function deleteInbox(id: number): boolean {
   const database = initializeDatabase();
   const result = database.prepare('DELETE FROM inbox WHERE id = ?').run(id);
   logger.info({ inboxID: id, changed: result.changes > 0 }, 'deleted inbox');
   return result.changes > 0;
 }
 
-export function getInbox(id: string): Inbox | null {
+export function getInbox(id: number): Inbox | null {
   const database = initializeDatabase();
   const inboxRow = database
-    .prepare('SELECT id FROM inbox WHERE id = ?')
+    .prepare('SELECT id, display_name AS displayName FROM inbox WHERE id = ?')
     .get(id) as InboxRow | undefined;
 
   if (!inboxRow) {
@@ -186,7 +193,7 @@ export function getConvo(sourceURL: string): Convo | null {
   return convoFromRow(convoRow);
 }
 
-export function getInboxProviders(inboxID: string): InboxProviderConfig[] {
+export function getInboxProviders(inboxID: number): InboxProviderConfig[] {
   const database = initializeDatabase();
   const rows = database
     .prepare(
@@ -212,7 +219,7 @@ export function getInboxProviders(inboxID: string): InboxProviderConfig[] {
 }
 
 export function setInboxProviderAssociations(
-  inboxID: string,
+  inboxID: number,
   providerIDs: number[],
 ): void {
   const uniqueProviderIDs = [...new Set(providerIDs)];
@@ -541,10 +548,17 @@ export function mergeMessages(
 }
 
 export function mergeConvosIntoInbox(
-  inboxID: string,
+  inboxID: number,
   convos: Convo[],
 ): Convo[] {
   const database = initializeDatabase();
+  const inboxExists = database
+    .prepare('SELECT 1 FROM inbox WHERE id = ?')
+    .get(inboxID);
+  if (!inboxExists) {
+    throw new Error('Inbox not found.');
+  }
+
   const result: Convo[] = [];
 
   const selectConvo = database.prepare(
@@ -595,7 +609,7 @@ export function mergeConvosIntoInbox(
   return result;
 }
 
-export function clearInbox(inboxID: string): number {
+export function clearInbox(inboxID: number): number {
   const database = initializeDatabase();
   const result = database
     .prepare('DELETE FROM convo WHERE inbox_id = ?')
@@ -623,7 +637,9 @@ export function resetAllData(): void {
 
 export function seedDummyData(): void {
   const database = initializeDatabase();
-  const insertInbox = database.prepare('INSERT INTO inbox (id) VALUES (?)');
+  const insertInbox = database.prepare(
+    'INSERT INTO inbox (display_name) VALUES (?)',
+  );
   const insertConvo = database.prepare(
     `
       INSERT INTO convo (id, source_url, inbox_id, messages_json)
@@ -635,13 +651,14 @@ export function seedDummyData(): void {
     resetAllData();
 
     for (const inbox of DUMMY_DATA) {
-      insertInbox.run(inbox.id);
+      const inboxInsertResult = insertInbox.run(inbox.displayName);
+      const inboxNumericID = Number(inboxInsertResult.lastInsertRowid);
 
       for (const convo of inbox.convos) {
         insertConvo.run({
           id: convo.id,
           sourceURL: convo.sourceURL,
-          inboxID: inbox.id,
+          inboxID: inboxNumericID,
           messagesJSON: JSON.stringify(convo.messages),
         });
       }

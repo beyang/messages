@@ -369,6 +369,72 @@ const MIGRATIONS: ((db: Database.Database) => void)[] = [
   (db) => {
     db.exec('DROP TABLE IF EXISTS provider_secrets;');
   },
+  // Migration 8: migrate inbox to numeric id PK and keep legacy string id as display_name
+  (db) => {
+    db.exec(`
+      CREATE TABLE inbox_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        display_name TEXT NOT NULL UNIQUE
+      );
+
+      INSERT INTO inbox_new (display_name)
+      SELECT id
+      FROM inbox
+      ORDER BY id;
+
+      CREATE TABLE convo_new (
+        id TEXT PRIMARY KEY,
+        source_url TEXT NOT NULL,
+        inbox_id INTEGER NOT NULL,
+        messages_json TEXT NOT NULL,
+        FOREIGN KEY (inbox_id) REFERENCES inbox_new (id) ON DELETE CASCADE
+      );
+
+      INSERT INTO convo_new (id, source_url, inbox_id, messages_json)
+      SELECT
+        c.id,
+        c.source_url,
+        i.id,
+        c.messages_json
+      FROM convo c
+      JOIN inbox_new i ON i.display_name = c.inbox_id;
+
+      CREATE TABLE inbox_providers_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        inbox_id INTEGER NOT NULL,
+        provider_id INTEGER NOT NULL,
+        query TEXT NOT NULL DEFAULT '{}',
+        FOREIGN KEY (inbox_id) REFERENCES inbox_new (id) ON DELETE CASCADE,
+        FOREIGN KEY (provider_id) REFERENCES providers (id) ON DELETE CASCADE,
+        UNIQUE (inbox_id, provider_id, query)
+      );
+
+      INSERT INTO inbox_providers_new (id, inbox_id, provider_id, query)
+      SELECT
+        ip.id,
+        i.id,
+        ip.provider_id,
+        ip.query
+      FROM inbox_providers ip
+      JOIN inbox_new i ON i.display_name = ip.inbox_id;
+
+      DROP TABLE inbox_providers;
+      DROP TABLE convo;
+      DROP TABLE inbox;
+
+      ALTER TABLE inbox_new RENAME TO inbox;
+      ALTER TABLE convo_new RENAME TO convo;
+      ALTER TABLE inbox_providers_new RENAME TO inbox_providers;
+
+      CREATE INDEX IF NOT EXISTS idx_convo_inbox_id ON convo (inbox_id);
+
+      CREATE INDEX IF NOT EXISTS idx_inbox_providers_inbox_id
+      ON inbox_providers (inbox_id);
+
+      CREATE INDEX IF NOT EXISTS idx_inbox_providers_provider_id
+      ON inbox_providers (provider_id);
+    `);
+  },
 ];
 
 function runMigrations(db: Database.Database): void {
