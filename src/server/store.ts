@@ -412,6 +412,7 @@ export function setMessageArchived(
   providerID: string,
   messageSourceURL: string,
   archived: boolean,
+  applyToConvo = false,
 ): boolean {
   const database = initializeDatabase();
   const convoRows = database
@@ -437,6 +438,7 @@ export function setMessageArchived(
     for (const row of convoRows) {
       const messages = parseMessages(row.messagesJSON, row.sourceURL);
       let hasChanges = false;
+      let hasTargetMessage = false;
 
       for (const message of messages) {
         if (
@@ -447,9 +449,24 @@ export function setMessageArchived(
         }
 
         foundMessage = true;
-        if (message.isArchived !== archived) {
+        hasTargetMessage = true;
+
+        if (!applyToConvo && message.isArchived !== archived) {
           message.isArchived = archived;
           hasChanges = true;
+        }
+      }
+
+      if (applyToConvo && hasTargetMessage) {
+        for (const message of messages) {
+          if (message.providerID !== providerID) {
+            continue;
+          }
+
+          if (message.isArchived !== archived) {
+            message.isArchived = archived;
+            hasChanges = true;
+          }
         }
       }
 

@@ -58,10 +58,13 @@ export const POST: RequestHandler = async ({ request }) => {
       body.archived,
     );
 
+    const archiveEntireConvo = providerConfig.type === 'gmail';
+
     const updatedLocal = setMessageArchived(
       messageProviderID,
       messageSourceURL,
       body.archived,
+      archiveEntireConvo,
     );
 
     return json({
