@@ -1,5 +1,7 @@
 <script lang="ts">
+import type { SubmitFunction } from '@sveltejs/kit';
 import { tick } from 'svelte';
+import { enhance } from '$app/forms';
 import type { ActionData, PageData } from './$types';
 import CodeMirrorEditor from './CodeMirrorEditor.svelte';
 
@@ -11,6 +13,20 @@ let selectedType = $state('dummy');
 let inboxIdInput = $state<HTMLInputElement | undefined>();
 let selectedInboxForProviders = $state('');
 let selectedProviderIDs = $state<string[]>([]);
+let inboxSortOrderForm = $state<HTMLFormElement | undefined>();
+let orderedInboxIDsInput = $state<HTMLInputElement | undefined>();
+
+type AdminTableRow = Record<string, unknown>;
+type DropPosition = 'before' | 'after';
+
+let inboxRows = $state<AdminTableRow[]>([]);
+let draggedInboxID = $state<string | null>(null);
+let dragOverInboxID = $state<string | null>(null);
+let dragOverPosition = $state<DropPosition | null>(null);
+let isPersistingInboxOrder = $state(false);
+let inboxSortOrderError = $state('');
+let inboxSortOrderSuccess = $state('');
+let pendingInboxRowsRollback = $state<AdminTableRow[] | null>(null);
 
 let gmailEmail = $state('');
 
@@ -78,6 +94,10 @@ let inboxProviderAssignmentByInboxID = $derived.by(
     ),
 );
 
+$effect(() => {
+  inboxRows = [...(data.tables.inbox?.rows ?? [])];
+});
+
 function syncSelectedProvidersForInbox(inboxID: string) {
   selectedProviderIDs =
     inboxProviderAssignmentByInboxID
@@ -99,6 +119,232 @@ function closeSetInboxProvidersModal() {
 function handleInboxForProvidersChange(event: Event) {
   selectedInboxForProviders = (event.currentTarget as HTMLSelectElement).value;
   syncSelectedProvidersForInbox(selectedInboxForProviders);
+}
+
+function rowsForTable(tableName: string, rows: AdminTableRow[]): AdminTableRow[] {
+  return tableName === 'inbox' ? inboxRows : rows;
+}
+
+function getInboxRowID(row: AdminTableRow): string {
+  return String(row.id ?? '');
+}
+
+function extractActionError(data: unknown): string | null {
+  if (!data || typeof data !== 'object') {
+    return null;
+  }
+
+  const maybeError = (data as { error?: unknown }).error;
+  return typeof maybeError === 'string' ? maybeError : null;
+}
+
+function resolveDropPosition(event: DragEvent): DropPosition {
+  const row = event.currentTarget as HTMLTableRowElement | null;
+  if (!row) {
+    return 'before';
+  }
+
+  const bounds = row.getBoundingClientRect();
+  return event.clientY < bounds.top + bounds.height / 2 ? 'before' : 'after';
+}
+
+function assignSequentialSortOrder(rows: AdminTableRow[]): AdminTableRow[] {
+  return rows.map((row, index) => ({
+    ...row,
+    sort_order: index,
+  }));
+}
+
+function moveInboxRow(
+  sourceInboxID: string,
+  targetInboxID: string,
+  position: DropPosition,
+): AdminTableRow[] | null {
+  const sourceIndex = inboxRows.findIndex(
+    (row) => getInboxRowID(row) === sourceInboxID,
+  );
+  const targetIndex = inboxRows.findIndex(
+    (row) => getInboxRowID(row) === targetInboxID,
+  );
+
+  if (
+    sourceIndex < 0 ||
+    targetIndex < 0 ||
+    sourceInboxID.length === 0 ||
+    targetInboxID.length === 0
+  ) {
+    return null;
+  }
+
+  const currentOrder = inboxRows.map((row) => getInboxRowID(row));
+  const nextRows = [...inboxRows];
+  const [movedRow] = nextRows.splice(sourceIndex, 1);
+  if (!movedRow) {
+    return null;
+  }
+
+  const targetIndexAfterRemoval =
+    sourceIndex < targetIndex ? targetIndex - 1 : targetIndex;
+  const insertIndex =
+    position === 'after' ? targetIndexAfterRemoval + 1 : targetIndexAfterRemoval;
+  nextRows.splice(insertIndex, 0, movedRow);
+
+  const nextOrder = nextRows.map((row) => getInboxRowID(row));
+  if (currentOrder.join(',') === nextOrder.join(',')) {
+    return null;
+  }
+
+  return assignSequentialSortOrder(nextRows);
+}
+
+function persistInboxSortOrder(previousRows: AdminTableRow[]): void {
+  if (!inboxSortOrderForm || !orderedInboxIDsInput) {
+    inboxRows = previousRows;
+    inboxSortOrderError = 'Failed to update inbox order.';
+    return;
+  }
+
+  const orderedInboxIDs = inboxRows
+    .map((row) => getInboxRowID(row))
+    .filter((id) => id.length > 0);
+
+  if (orderedInboxIDs.length !== inboxRows.length) {
+    inboxRows = previousRows;
+    inboxSortOrderError = 'Failed to update inbox order.';
+    return;
+  }
+
+  pendingInboxRowsRollback = previousRows;
+  inboxSortOrderError = '';
+  inboxSortOrderSuccess = '';
+  orderedInboxIDsInput.value = orderedInboxIDs.join(',');
+  inboxSortOrderForm.requestSubmit();
+}
+
+const enhanceInboxSortOrder: SubmitFunction = () => {
+  isPersistingInboxOrder = true;
+
+  return async ({ result }) => {
+    isPersistingInboxOrder = false;
+
+    if (result.type === 'success') {
+      pendingInboxRowsRollback = null;
+      inboxSortOrderError = '';
+      inboxSortOrderSuccess = 'Inbox order updated.';
+      return;
+    }
+
+    if (pendingInboxRowsRollback) {
+      inboxRows = pendingInboxRowsRollback;
+      pendingInboxRowsRollback = null;
+    }
+
+    if (result.type === 'failure') {
+      inboxSortOrderError =
+        extractActionError(result.data) ?? 'Failed to update inbox order.';
+      return;
+    }
+
+    inboxSortOrderError = 'Failed to update inbox order.';
+  };
+};
+
+function handleInboxDragStart(event: DragEvent, inboxID: string): void {
+  if (!inboxID || isPersistingInboxOrder) {
+    return;
+  }
+
+  inboxSortOrderError = '';
+  inboxSortOrderSuccess = '';
+  draggedInboxID = inboxID;
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', inboxID);
+  }
+}
+
+function handleInboxDragOver(
+  event: DragEvent,
+  tableName: string,
+  targetInboxID: string,
+): void {
+  if (tableName !== 'inbox' || !draggedInboxID || isPersistingInboxOrder) {
+    return;
+  }
+
+  event.preventDefault();
+  if (draggedInboxID === targetInboxID) {
+    dragOverInboxID = null;
+    dragOverPosition = null;
+    return;
+  }
+
+  dragOverInboxID = targetInboxID;
+  dragOverPosition = resolveDropPosition(event);
+  if (event.dataTransfer) {
+    event.dataTransfer.dropEffect = 'move';
+  }
+}
+
+function handleInboxDragLeave(
+  event: DragEvent,
+  tableName: string,
+  targetInboxID: string,
+): void {
+  if (tableName !== 'inbox') {
+    return;
+  }
+
+  const row = event.currentTarget as HTMLTableRowElement | null;
+  const relatedTarget = event.relatedTarget as Node | null;
+  if (row && relatedTarget && row.contains(relatedTarget)) {
+    return;
+  }
+
+  if (dragOverInboxID === targetInboxID) {
+    dragOverInboxID = null;
+    dragOverPosition = null;
+  }
+}
+
+function handleInboxDrop(
+  event: DragEvent,
+  tableName: string,
+  targetInboxID: string,
+): void {
+  if (tableName !== 'inbox' || isPersistingInboxOrder) {
+    return;
+  }
+
+  event.preventDefault();
+
+  const sourceInboxID =
+    draggedInboxID ?? event.dataTransfer?.getData('text/plain') ?? '';
+  const dropPosition = resolveDropPosition(event);
+  const previousRows = [...inboxRows];
+
+  dragOverInboxID = null;
+  dragOverPosition = null;
+
+  if (!sourceInboxID || sourceInboxID === targetInboxID) {
+    draggedInboxID = null;
+    return;
+  }
+
+  const nextRows = moveInboxRow(sourceInboxID, targetInboxID, dropPosition);
+  draggedInboxID = null;
+  if (!nextRows) {
+    return;
+  }
+
+  inboxRows = nextRows;
+  persistInboxSortOrder(previousRows);
+}
+
+function handleInboxDragEnd(): void {
+  draggedInboxID = null;
+  dragOverInboxID = null;
+  dragOverPosition = null;
 }
 
 async function startAuthForProvider(providerID: string) {
@@ -151,16 +397,35 @@ async function startAuthForProvider(providerID: string) {
     </span>
   </h1>
 
-  {#if form?.error || data.authError || authError}
-    <div class="flash error">{form?.error ?? data.authError ?? authError}</div>
+  {#if form?.error || data.authError || authError || inboxSortOrderError}
+    <div class="flash error">
+      {form?.error ?? data.authError ?? authError ?? inboxSortOrderError}
+    </div>
   {/if}
-  {#if form?.success || data.authSuccess}
-    <div class="flash success">{form?.success ?? data.authSuccess}</div>
+  {#if form?.success || data.authSuccess || inboxSortOrderSuccess}
+    <div class="flash success">
+      {form?.success ?? data.authSuccess ?? inboxSortOrderSuccess}
+    </div>
   {/if}
+
+  <form
+    method="POST"
+    action="?/setInboxSortOrder"
+    class="hidden-form"
+    bind:this={inboxSortOrderForm}
+    use:enhance={enhanceInboxSortOrder}
+  >
+    <input type="hidden" name="orderedInboxIds" bind:this={orderedInboxIDsInput} />
+  </form>
 
   {#each Object.entries(data.tables) as [name, table]}
     <section class="table-section">
-      <h2>{name} <span class="count">({table.total} rows)</span></h2>
+      <h2>
+        {name} <span class="count">({table.total} rows)</span>
+        {#if name === 'inbox' && isPersistingInboxOrder}
+          <span class="drag-status">Saving order...</span>
+        {/if}
+      </h2>
 
       {#if table.rows.length === 0}
         <p class="empty">No rows.</p>
@@ -169,6 +434,9 @@ async function startAuthForProvider(providerID: string) {
           <table>
             <thead>
               <tr>
+                {#if name === 'inbox'}
+                  <th class="drag-header">move</th>
+                {/if}
                 {#each table.columns as col}
                   <th>{col}</th>
                 {/each}
@@ -178,11 +446,43 @@ async function startAuthForProvider(providerID: string) {
               </tr>
             </thead>
             <tbody>
-              {#each table.rows as row}
-                <tr>
+              {#each rowsForTable(name, table.rows) as row}
+                {@const pkValue = getInboxRowID(row)}
+                <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+                <tr
+                  class:inbox-row-dragging={name === 'inbox' && draggedInboxID === pkValue}
+                  class:inbox-row-drop-before={
+                    name === 'inbox' &&
+                    dragOverInboxID === pkValue &&
+                    dragOverPosition === 'before'
+                  }
+                  class:inbox-row-drop-after={
+                    name === 'inbox' &&
+                    dragOverInboxID === pkValue &&
+                    dragOverPosition === 'after'
+                  }
+                  ondragover={(event) => handleInboxDragOver(event, name, pkValue)}
+                  ondragleave={(event) => handleInboxDragLeave(event, name, pkValue)}
+                  ondrop={(event) => handleInboxDrop(event, name, pkValue)}
+                >
+                  {#if name === 'inbox'}
+                    <td class="drag-cell">
+                      <button
+                        type="button"
+                        class="drag-handle"
+                        draggable="true"
+                        title="Drag to reorder inboxes"
+                        aria-label="Drag to reorder inbox"
+                        disabled={isPersistingInboxOrder}
+                        ondragstart={(event) => handleInboxDragStart(event, pkValue)}
+                        ondragend={handleInboxDragEnd}
+                      >
+                        ::
+                      </button>
+                    </td>
+                  {/if}
                   {#each table.columns as col}
                     {@const rawValue = String(row[col] ?? '')}
-                    {@const pkValue = String(row[table.primaryKey] ?? '')}
                     {@const isEditing = editingCell?.table === name && editingCell?.pkValue === pkValue && editingCell?.column === col}
                     <td>
                       {#if isEditing}
@@ -223,7 +523,7 @@ async function startAuthForProvider(providerID: string) {
                           Authorize
                         </button>
                       {:else}
-                        <span class="row-auth-unavailable">—</span>
+                        <span class="row-auth-unavailable">-</span>
                       {/if}
                     </td>
                   {/if}
@@ -341,7 +641,7 @@ async function startAuthForProvider(providerID: string) {
                     value={String(provider.id)}
                     bind:group={selectedProviderIDs}
                   />
-                  <span>{provider.id} ({provider.type}) — {provider.identityJSON}</span>
+                  <span>{provider.id} ({provider.type}) - {provider.identityJSON}</span>
                 </label>
               {/each}
             {/if}
@@ -440,6 +740,13 @@ async function startAuthForProvider(providerID: string) {
     font-size: 0.9rem;
   }
 
+  .drag-status {
+    margin-left: 0.65rem;
+    color: #93c5fd;
+    font-size: 0.8rem;
+    font-weight: 500;
+  }
+
   .empty {
     color: #64748b;
     font-style: italic;
@@ -447,6 +754,10 @@ async function startAuthForProvider(providerID: string) {
 
   .table-wrap {
     overflow-x: auto;
+  }
+
+  .hidden-form {
+    display: none;
   }
 
   table {
@@ -483,6 +794,59 @@ async function startAuthForProvider(providerID: string) {
   }
   tr:nth-child(odd) td {
     background: #1e293b;
+  }
+
+  .drag-header {
+    width: 3rem;
+    text-align: center;
+  }
+
+  .drag-cell {
+    width: 3rem;
+    text-align: center;
+    padding: 0.35rem 0.5rem;
+  }
+
+  .drag-handle {
+    width: 1.5rem;
+    height: 1.5rem;
+    border: 1px solid #475569;
+    border-radius: 4px;
+    background: #334155;
+    color: #cbd5e1;
+    cursor: grab;
+    font-size: 0.85rem;
+    line-height: 1;
+  }
+
+  .drag-handle:hover {
+    background: #475569;
+  }
+
+  .drag-handle:active {
+    cursor: grabbing;
+  }
+
+  .drag-handle:focus-visible {
+    outline: 2px solid #60a5fa;
+    outline-offset: 1px;
+  }
+
+  .drag-handle:disabled {
+    cursor: wait;
+    opacity: 0.6;
+  }
+
+  .inbox-row-dragging td {
+    opacity: 0.45;
+  }
+
+  .inbox-row-drop-before td {
+    box-shadow: inset 0 2px 0 #60a5fa;
+  }
+
+  .inbox-row-drop-after td {
+    box-shadow: inset 0 -2px 0 #60a5fa;
   }
 
   .inline-form {

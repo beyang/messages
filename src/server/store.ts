@@ -142,7 +142,13 @@ export function listInboxes(): Inbox[] {
   const database = initializeDatabase();
   const inboxRows = database
     .prepare(
-      'SELECT id, display_name AS displayName FROM inbox ORDER BY display_name',
+      `
+        SELECT
+          id,
+          display_name AS displayName
+        FROM inbox
+        ORDER BY sort_order, display_name, id
+      `,
     )
     .all() as InboxRow[];
 
@@ -151,11 +157,23 @@ export function listInboxes(): Inbox[] {
 
 export function createInbox(displayName: string): Inbox {
   const database = initializeDatabase();
+  const nextSortOrder = (
+    database
+      .prepare(
+        'SELECT COALESCE(MAX(sort_order), -1) + 1 AS nextSortOrder FROM inbox',
+      )
+      .get() as {
+      nextSortOrder: number;
+    }
+  ).nextSortOrder;
   const result = database
-    .prepare('INSERT INTO inbox (display_name) VALUES (?)')
-    .run(displayName);
+    .prepare('INSERT INTO inbox (display_name, sort_order) VALUES (?, ?)')
+    .run(displayName, nextSortOrder);
   const inboxID = Number(result.lastInsertRowid);
-  logger.info({ inboxID, inboxDisplayName: displayName }, 'created inbox');
+  logger.info(
+    { inboxID, inboxDisplayName: displayName, sortOrder: nextSortOrder },
+    'created inbox',
+  );
   return { id: inboxID, displayName, providers: [], convos: [] };
 }
 
@@ -164,6 +182,43 @@ export function deleteInbox(id: number): boolean {
   const result = database.prepare('DELETE FROM inbox WHERE id = ?').run(id);
   logger.info({ inboxID: id, changed: result.changes > 0 }, 'deleted inbox');
   return result.changes > 0;
+}
+
+export function setInboxSortOrder(orderedInboxIDs: number[]): void {
+  const uniqueInboxIDs = [...new Set(orderedInboxIDs)];
+  if (uniqueInboxIDs.length !== orderedInboxIDs.length) {
+    throw new Error('Inbox IDs must be unique.');
+  }
+
+  if (uniqueInboxIDs.some((id) => !Number.isInteger(id) || id <= 0)) {
+    throw new Error('Inbox IDs must be positive integers.');
+  }
+
+  const database = initializeDatabase();
+  const existingInboxRows = database.prepare('SELECT id FROM inbox').all() as {
+    id: number;
+  }[];
+
+  if (uniqueInboxIDs.length !== existingInboxRows.length) {
+    throw new Error('Inbox order must include every inbox.');
+  }
+
+  const existingInboxIDs = new Set(existingInboxRows.map((row) => row.id));
+  if (uniqueInboxIDs.some((id) => !existingInboxIDs.has(id))) {
+    throw new Error('Inbox order contains unknown inbox IDs.');
+  }
+
+  const updateSortOrder = database.prepare(
+    'UPDATE inbox SET sort_order = ? WHERE id = ?',
+  );
+
+  database.transaction(() => {
+    for (const [sortOrder, inboxID] of uniqueInboxIDs.entries()) {
+      updateSortOrder.run(sortOrder, inboxID);
+    }
+  })();
+
+  logger.info({ inboxIDs: uniqueInboxIDs }, 'updated inbox sort order');
 }
 
 export function getInbox(id: number): Inbox | null {
@@ -647,7 +702,7 @@ export function resetAllData(): void {
 export function seedDummyData(): void {
   const database = initializeDatabase();
   const insertInbox = database.prepare(
-    'INSERT INTO inbox (display_name) VALUES (?)',
+    'INSERT INTO inbox (display_name, sort_order) VALUES (?, ?)',
   );
   const insertConvo = database.prepare(
     `
@@ -659,8 +714,8 @@ export function seedDummyData(): void {
   const transaction = database.transaction(() => {
     resetAllData();
 
-    for (const inbox of DUMMY_DATA) {
-      const inboxInsertResult = insertInbox.run(inbox.displayName);
+    for (const [sortOrder, inbox] of DUMMY_DATA.entries()) {
+      const inboxInsertResult = insertInbox.run(inbox.displayName, sortOrder);
       const inboxNumericID = Number(inboxInsertResult.lastInsertRowid);
 
       for (const convo of inbox.convos) {

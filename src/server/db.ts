@@ -435,6 +435,34 @@ const MIGRATIONS: ((db: Database.Database) => void)[] = [
       ON inbox_providers (provider_id);
     `);
   },
+  // Migration 9: add manual inbox sort ordering column
+  (db) => {
+    const tableInfo = db.prepare("PRAGMA table_info('inbox')").all() as {
+      name: string;
+    }[];
+    const hasSortOrderColumn = tableInfo.some(
+      (column) => column.name === 'sort_order',
+    );
+
+    if (hasSortOrderColumn) {
+      return;
+    }
+
+    db.exec(
+      'ALTER TABLE inbox ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0',
+    );
+
+    const inboxRows = db
+      .prepare('SELECT id FROM inbox ORDER BY display_name, id')
+      .all() as { id: number }[];
+    const updateSortOrder = db.prepare(
+      'UPDATE inbox SET sort_order = ? WHERE id = ?',
+    );
+
+    for (const [index, row] of inboxRows.entries()) {
+      updateSortOrder.run(index, row.id);
+    }
+  },
 ];
 
 function runMigrations(db: Database.Database): void {

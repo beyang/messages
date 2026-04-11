@@ -9,6 +9,7 @@ import {
   listInboxes,
   listProviderConfigs,
   setInboxProviderAssociations,
+  setInboxSortOrder,
 } from '../../server/store';
 import { providerIdentitySchema } from '../../shared/types';
 import type { Actions, PageServerLoad } from './$types';
@@ -65,10 +66,16 @@ function queryTable(
     .get() as { cnt: number };
   const total = countRow.cnt;
 
-  const offset = (page - 1) * pageSize;
-  const rows = db
-    .prepare(`SELECT * FROM ${tableName} LIMIT ? OFFSET ?`)
-    .all(pageSize, offset) as Record<string, unknown>[];
+  const rows =
+    tableName === 'inbox'
+      ? (db
+          .prepare(
+            `SELECT * FROM ${tableName} ORDER BY sort_order, display_name, id`,
+          )
+          .all() as Record<string, unknown>[])
+      : (db
+          .prepare(`SELECT * FROM ${tableName} LIMIT ? OFFSET ?`)
+          .all(pageSize, (page - 1) * pageSize) as Record<string, unknown>[]);
 
   const columns =
     rows.length > 0
@@ -81,7 +88,14 @@ function queryTable(
 
   const primaryKey = getTablePrimaryKey(db, tableName);
 
-  return { columns, rows, total, page, pageSize, primaryKey };
+  return {
+    columns,
+    rows,
+    total,
+    page: tableName === 'inbox' ? 1 : page,
+    pageSize: tableName === 'inbox' ? Math.max(total, 1) : pageSize,
+    primaryKey,
+  };
 }
 
 export const load: PageServerLoad = ({ url }) => {
@@ -244,6 +258,48 @@ export const actions: Actions = {
     }
 
     return { success: 'Inbox providers updated.' };
+  },
+  setInboxSortOrder: async ({ request }) => {
+    const form = await request.formData();
+    const orderedInboxIDsValue = form.get('orderedInboxIds');
+
+    if (typeof orderedInboxIDsValue !== 'string') {
+      return fail(400, { error: 'Inbox order is required.' });
+    }
+
+    const rawInboxIDs = orderedInboxIDsValue
+      .split(',')
+      .map((value) => value.trim())
+      .filter((value) => value.length > 0);
+
+    const inboxIDs: number[] = [];
+    for (const rawInboxID of rawInboxIDs) {
+      if (!/^\d+$/.test(rawInboxID)) {
+        return fail(400, {
+          error: 'Inbox order must contain positive integer inbox IDs.',
+        });
+      }
+
+      inboxIDs.push(Number.parseInt(rawInboxID, 10));
+    }
+
+    try {
+      setInboxSortOrder(inboxIDs);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (
+        message === 'Inbox IDs must be unique.' ||
+        message === 'Inbox IDs must be positive integers.' ||
+        message === 'Inbox order must include every inbox.' ||
+        message === 'Inbox order contains unknown inbox IDs.'
+      ) {
+        return fail(400, { error: message });
+      }
+
+      return fail(500, { error: `Failed to update inbox order: ${message}` });
+    }
+
+    return { success: 'Inbox order updated.' };
   },
   updateCell: async ({ request }) => {
     const form = await request.formData();

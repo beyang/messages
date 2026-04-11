@@ -60,11 +60,13 @@ describe('database migrations', () => {
     applySchema(db);
 
     const inboxRows = db
-      .prepare('SELECT id, display_name AS displayName FROM inbox ORDER BY id')
-      .all() as { id: number; displayName: string }[];
+      .prepare(
+        'SELECT id, display_name AS displayName, sort_order AS sortOrder FROM inbox ORDER BY id',
+      )
+      .all() as { id: number; displayName: string; sortOrder: number }[];
     expect(inboxRows).toEqual([
-      { id: 1, displayName: 'alpha' },
-      { id: 2, displayName: 'beta' },
+      { id: 1, displayName: 'alpha', sortOrder: 0 },
+      { id: 2, displayName: 'beta', sortOrder: 1 },
     ]);
 
     const convoRow = db
