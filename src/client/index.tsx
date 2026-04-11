@@ -888,7 +888,7 @@ function App() {
       return;
     }
 
-    if (input === 'o') {
+    if (input === 'v') {
       if (!openSourceTargetMessage) {
         return;
       }

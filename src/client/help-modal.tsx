@@ -15,7 +15,7 @@ const HELP_MODAL_SHORTCUTS = [
   'esc discard reply draft',
   's toggle star on selected message',
   'e toggle archive on selected message',
-  'o open source URL',
+  'v open source URL',
   '? toggle this help modal',
   'esc close help modal',
   'q quit',
