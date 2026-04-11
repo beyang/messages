@@ -195,15 +195,38 @@ type _providerConfigSchemaProducesProviderConfig = AssertTrue<
   z.output<typeof providerConfigSchema> extends ProviderConfig ? true : false
 >;
 
+export interface InboxProvider {
+  id: number;
+  type: string;
+  identity: ProviderIdentity;
+  query: ProviderIdentity;
+}
+
+export const inboxProviderSchema: z.ZodType<InboxProvider> = z.object({
+  id: z.number().int(),
+  type: z.string(),
+  identity: providerIdentitySchema,
+  query: providerIdentitySchema,
+});
+
+type _inboxProviderSatisfiesInboxProviderSchema = AssertTrue<
+  InboxProvider extends z.input<typeof inboxProviderSchema> ? true : false
+>;
+type _inboxProviderSchemaProducesInboxProvider = AssertTrue<
+  z.output<typeof inboxProviderSchema> extends InboxProvider ? true : false
+>;
+
 export interface Inbox {
   id: number;
   displayName: string;
+  providers: InboxProvider[];
   convos: Convo[];
 }
 
 export const inboxSchema: z.ZodType<Inbox> = z.object({
   id: z.number().int(),
   displayName: z.string(),
+  providers: z.array(inboxProviderSchema),
   convos: z.array(convoSchema),
 });
 

@@ -1,5 +1,5 @@
 import { Box, Text } from 'ink';
-import type { Convo, Inbox, Message } from '../shared/types.js';
+import type { Convo, Inbox, InboxProvider, Message } from '../shared/types.js';
 import { sanitizeForTerminalText } from './terminal-text.js';
 
 const HELP_MODAL_SHORTCUTS = [
@@ -40,6 +40,36 @@ function getConvoTitle(convo: Convo): string {
   return '(untitled)';
 }
 
+function formatProviderFields(fields: InboxProvider['query']): string | null {
+  const entries = Object.entries(fields);
+  if (entries.length === 0) {
+    return null;
+  }
+
+  return entries
+    .map(([key, value]) => {
+      const serializedValue =
+        value !== null && typeof value === 'object'
+          ? JSON.stringify(value)
+          : String(value);
+      return `${key}:${serializedValue}`;
+    })
+    .join(' -> ');
+}
+
+export function formatHelpModalProvider(provider: InboxProvider): string {
+  const segments = [provider.type];
+  const identity = formatProviderFields(provider.identity);
+  if (identity) {
+    segments.push(identity);
+  }
+  const query = formatProviderFields(provider.query);
+  if (query) {
+    segments.push(query);
+  }
+  return sanitizeForTerminalText(segments.join(' -> '));
+}
+
 export function HelpModal({
   inbox,
   convo,
@@ -55,9 +85,20 @@ export function HelpModal({
   const selectedMessage = message
     ? sanitizeForTerminalText(message.id)
     : '(none)';
+  const selectedInboxProviderItems = inbox
+    ? inbox.providers.length > 0
+      ? inbox.providers.map((provider) => ({
+          key: provider.id.toString(),
+          line: formatHelpModalProvider(provider),
+        }))
+      : [{ key: 'none-configured', line: '(none configured)' }]
+    : [{ key: 'none', line: '(none)' }];
   const height = Math.max(
     12,
-    Math.min(terminalRows - 2, HELP_MODAL_SHORTCUTS.length + 8),
+    Math.min(
+      terminalRows - 2,
+      HELP_MODAL_SHORTCUTS.length + 9 + selectedInboxProviderItems.length,
+    ),
   );
 
   return (
@@ -96,6 +137,14 @@ export function HelpModal({
           <Text bold>Selected:</Text> [Inbox] {selectedInbox} -&gt; [Convo]{' '}
           {selectedConvo} -&gt; [Message] {selectedMessage}
         </Text>
+        <Text bold wrap="truncate-end">
+          Inbox Providers:
+        </Text>
+        {selectedInboxProviderItems.map((provider) => (
+          <Text key={provider.key} wrap="truncate-end">
+            - {provider.line}
+          </Text>
+        ))}
       </Box>
     </Box>
   );

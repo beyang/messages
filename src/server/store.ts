@@ -4,6 +4,7 @@ import pino from 'pino';
 import {
   type Convo,
   type Inbox,
+  type InboxProvider,
   type Message,
   messageSchema,
   type ProviderConfig,
@@ -125,6 +126,14 @@ function inboxFromRow(database: Database.Database, row: InboxRow): Inbox {
   return {
     id: row.id,
     displayName: row.displayName,
+    providers: getInboxProviders(row.id).map(
+      (provider): InboxProvider => ({
+        id: provider.id,
+        type: provider.type,
+        identity: provider.identity,
+        query: provider.query,
+      }),
+    ),
     convos: getConvoRowsByInbox(database, row.id).map(convoFromRow),
   };
 }
@@ -147,7 +156,7 @@ export function createInbox(displayName: string): Inbox {
     .run(displayName);
   const inboxID = Number(result.lastInsertRowid);
   logger.info({ inboxID, inboxDisplayName: displayName }, 'created inbox');
-  return { id: inboxID, displayName, convos: [] };
+  return { id: inboxID, displayName, providers: [], convos: [] };
 }
 
 export function deleteInbox(id: number): boolean {
