@@ -272,7 +272,12 @@ export function MessagesView({
           entry.line.messageIndex === selectedMessageIndex && !!convo;
         const isSelectedMessageStart =
           isSelectedMessageLine && entry.line.isMessageStart;
-        const linePrefix = isSelectedMessageStart ? '❯ ' : '  ';
+        const linePrefix =
+          typeof entry.line.messageIndex === 'number'
+            ? isSelectedMessageStart
+              ? '❯ '
+              : '  '
+            : ' ';
 
         return (
           <Box key={entry.key} flexDirection="row">

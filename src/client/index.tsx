@@ -276,6 +276,8 @@ function ReplyComposer({
 }
 
 function ConvoPreview({ convo }: { convo: Convo }) {
+  const messageCountPrefix =
+    convo.messages.length > 1 ? `(${convo.messages.length}) ` : '';
   const hasStarredMessage = convo.messages.some(
     (message) => message.hasStar === true,
   );
@@ -288,7 +290,7 @@ function ConvoPreview({ convo }: { convo: Convo }) {
     return (
       <Box flexDirection="column">
         <Text wrap="truncate">
-          {`${convoStatusPrefix}${sanitizeForTerminalText(convo.sourceURL)}`}
+          {`${messageCountPrefix}${convoStatusPrefix}${sanitizeForTerminalText(convo.sourceURL)}`}
         </Text>
         <Text wrap="truncate" dimColor>
           (no messages)
@@ -307,7 +309,7 @@ function ConvoPreview({ convo }: { convo: Convo }) {
     author && subject
       ? `${author}, ${subject}`
       : (author ?? subject ?? sanitizeForTerminalText(convo.sourceURL));
-  const headingWithStatus = `${convoStatusPrefix}${heading}`;
+  const headingWithStatus = `${messageCountPrefix}${convoStatusPrefix}${heading}`;
   const preview = sanitizeForTerminalText(latestMessage.content)
     .replace(/\n+/g, ' ')
     .trim();
@@ -467,6 +469,9 @@ function App() {
   );
   const currentConvoLines = currentConvoLayout.lines;
   const messageCount = currentConvoLayout.messages.length;
+  const currentMessagePosition =
+    messageCount > 0 ? clamp(selectedMessageIndex, messageCount) + 1 : 0;
+  const messagesPaneLabel = `Messages (${currentMessagePosition} of ${messageCount})`;
   const currentMessage =
     currentConvoLayout.messages[selectedMessageIndex] ?? null;
   const latestConvoMessage = currentConvo
@@ -937,24 +942,19 @@ function App() {
           <SelectableList
             items={convoItems}
             selectedIndex={selectedConvoIndex}
-            emptyLabel="(no convos)"
+            emptyLabel=" (no convos)"
             isFocused={focusPane === 'convos'}
             visibleHeight={paneBodyHeight}
             itemHeight={2}
           />
         </Pane>
         <Pane
-          label="Messages"
+          label={messagesPaneLabel}
           isFocused={focusPane === 'messages'}
           width="50%"
           height={mainHeight}
         >
-          <Box
-            flexDirection="column"
-            flexGrow={1}
-            minHeight={0}
-            paddingLeft={1}
-          >
+          <Box flexDirection="column" flexGrow={1} minHeight={0}>
             {isReplying && replyBoxHeight > 0 ? (
               <ReplyComposer
                 content={replyDraft}
