@@ -370,11 +370,11 @@ function buildGmailMessageMetadata(
   const mailedBy = extractMailedByFromAuthenticationResults(headers);
   const signedBy = extractSignedByFromAuthenticationResults(headers);
   const metadataFields: Array<[string, string | undefined]> = [
-    ['to', getSanitizedHeaderValue(headers, 'to')],
-    ['subject', getSanitizedHeaderValue(headers, 'subject')],
-    ['reply-to', getSanitizedHeaderValue(headers, 'reply-to')],
-    ['mailed-by', mailedBy],
-    ['signed-by', signedBy],
+    ['To', getSanitizedHeaderValue(headers, 'to')],
+    ['Subject', getSanitizedHeaderValue(headers, 'subject')],
+    ['Reply-To', getSanitizedHeaderValue(headers, 'reply-to')],
+    ['Mailed-By', mailedBy],
+    ['Signed-By', signedBy],
   ];
 
   const lines = metadataFields.flatMap(([name, value]) =>
