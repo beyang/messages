@@ -8,6 +8,7 @@ const HELP_MODAL_SHORTCUTS = [
   '←/→ or h/l jump pane',
   'R refresh inboxes',
   'f fetch providers for selected inbox',
+  'F fetch providers for all inboxes',
   'c clear selected inbox',
   'r compose reply',
   'a compose reply all',

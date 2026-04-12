@@ -773,6 +773,60 @@ function App() {
       return;
     }
 
+    if (input === 'F') {
+      if (inboxes.length === 0) {
+        setStatus('No inboxes found to fetch.');
+        return;
+      }
+
+      const inboxesToFetch = [...inboxes];
+      setStatus(
+        `Fetching providers for all ${inboxesToFetch.length} inbox(es)...`,
+      );
+
+      void (async () => {
+        let fetchedConvoCount = 0;
+        const needsAuthURLs = new Set<string>();
+        const errors: string[] = [];
+
+        for (const inbox of inboxesToFetch) {
+          try {
+            const result = await api.fetchProviders(inbox.id);
+            fetchedConvoCount += result.fetched;
+            if (result.needsAuth) {
+              needsAuthURLs.add(`${serverURL}${result.needsAuth.url}`);
+            }
+            if (result.errors?.length) {
+              errors.push(
+                ...result.errors.map(
+                  (detail) => `${inbox.displayName}: ${detail}`,
+                ),
+              );
+            }
+          } catch (error) {
+            const detail =
+              error instanceof Error ? error.message : String(error);
+            errors.push(`${inbox.displayName}: ${detail}`);
+          }
+        }
+
+        const parts: string[] = [
+          `Fetched ${fetchedConvoCount} conversation(s) from providers across ${inboxesToFetch.length} inbox(es).`,
+        ];
+
+        if (needsAuthURLs.size > 0) {
+          parts.push(`Auth required: ${Array.from(needsAuthURLs).join(', ')}`);
+        }
+
+        if (errors.length > 0) {
+          parts.push(`Errors: ${errors.join('; ')}`);
+        }
+
+        await refreshData(parts.join(' | '));
+      })();
+      return;
+    }
+
     if (input === 'f') {
       if (!currentInbox) {
         setStatus('No inbox selected.');
