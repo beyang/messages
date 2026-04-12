@@ -278,6 +278,8 @@ function ReplyComposer({
 function ConvoPreview({ convo }: { convo: Convo }) {
   const messageCountPrefix =
     convo.messages.length > 1 ? `(${convo.messages.length}) ` : '';
+  const messageCountSuffix =
+    convo.messages.length > 1 ? ` (${convo.messages.length})` : '';
   const hasStarredMessage = convo.messages.some(
     (message) => message.hasStar === true,
   );
@@ -305,18 +307,26 @@ function ConvoPreview({ convo }: { convo: Convo }) {
   const subject = latestMessage.subject
     ? sanitizeForTerminalText(latestMessage.subject)
     : undefined;
-  const heading =
-    author && subject
-      ? `${author}, ${subject}`
-      : (author ?? subject ?? sanitizeForTerminalText(convo.sourceURL));
-  const headingWithStatus = `${messageCountPrefix}${convoStatusPrefix}${heading}`;
+  const fallbackHeading = subject ?? sanitizeForTerminalText(convo.sourceURL);
+  const headingSuffix = author
+    ? subject
+      ? ` ${subject}`
+      : ''
+    : fallbackHeading;
   const preview = sanitizeForTerminalText(latestMessage.content)
     .replace(/\n+/g, ' ')
     .trim();
 
   return (
     <Box flexDirection="column">
-      <Text wrap="truncate">{headingWithStatus}</Text>
+      <Text wrap="truncate">
+        {author ? null : messageCountPrefix}
+        {convoStatusPrefix}
+        {author ? (
+          <Text color="yellow">{`${author}${messageCountSuffix}`}</Text>
+        ) : null}
+        {headingSuffix}
+      </Text>
       <Text wrap="truncate" dimColor>
         {preview.length > 0 ? preview : '(empty message)'}
       </Text>
