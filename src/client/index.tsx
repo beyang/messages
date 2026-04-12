@@ -457,11 +457,17 @@ function App() {
   const footerHeight = Math.min(FOOTER_HEIGHT, Math.max(3, terminalRows - 3));
   const mainHeight = Math.max(3, terminalRows - footerHeight);
   const paneBodyHeight = Math.max(0, mainHeight - PANE_CHROME_HEIGHT);
+  const inboxPaneWidthPercent = 15;
+  const messagesPaneWidthPercent = focusPane === 'messages' ? 55 : 40;
+  const convosPaneWidthPercent =
+    100 - inboxPaneWidthPercent - messagesPaneWidthPercent;
   const replyBoxHeight = isReplying ? getReplyBoxHeight(paneBodyHeight) : 0;
   const messageListHeight = Math.max(0, paneBodyHeight - replyBoxHeight);
   const messagePaneContentWidth = Math.max(
     20,
-    Math.floor(terminalCols * 0.5) - 7 - MESSAGE_LINE_PREFIX_WIDTH,
+    Math.floor((terminalCols * messagesPaneWidthPercent) / 100) -
+      7 -
+      MESSAGE_LINE_PREFIX_WIDTH,
   );
   const currentConvoLayout = useMemo(
     () => buildConvoMessageLayout(currentConvo, messagePaneContentWidth),
@@ -922,7 +928,7 @@ function App() {
         <Pane
           label="Inboxes"
           isFocused={focusPane === 'inboxes'}
-          width="20%"
+          width={`${inboxPaneWidthPercent}%`}
           height={mainHeight}
         >
           <SelectableList
@@ -936,7 +942,7 @@ function App() {
         <Pane
           label="Convos"
           isFocused={focusPane === 'convos'}
-          width="30%"
+          width={`${convosPaneWidthPercent}%`}
           height={mainHeight}
         >
           <SelectableList
@@ -951,7 +957,7 @@ function App() {
         <Pane
           label={messagesPaneLabel}
           isFocused={focusPane === 'messages'}
-          width="50%"
+          width={`${messagesPaneWidthPercent}%`}
           height={mainHeight}
         >
           <Box flexDirection="column" flexGrow={1} minHeight={0}>
